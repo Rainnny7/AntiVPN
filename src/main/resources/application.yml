@@ -1,0 +1,52 @@
+# Server Configuration
+server:
+  address: 0.0.0.0
+  port: 7500
+
+# The header to use when identifying API keys
+auth:
+  header: "X-API-Key"
+
+# Maxmind Configuration
+maxmind:
+  license: "LICENSE_KEY"
+  databases: GeoLite2-ASN, GeoLite2-Country # The databases to download
+
+# Service Configuration
+services:
+  # Private Internet Access
+  pia:
+    authenticity-token: "AUTH_TOKEN"
+    cookie-session: "COOKIE_SESSION"
+    threads: 8
+
+# Log Configuration
+logging:
+  file:
+    path: "./logs"
+
+# Spring Configuration
+spring:
+  # Database Configuration
+  data:
+    # MongoDB - This is used to store persistent data, such as API keys.
+    mongodb:
+      uri: "mongodb://antivpn:p4$$w0rd@127.0.0.1:27017/antivpn?authSource=admin"
+      auto-index-creation: true # Automatically create collection indexes
+
+    # Redis - This is used for caching
+    redis:
+      host: "127.0.0.1"
+      port: 6379
+      database: 0
+      auth: "" # Leave blank for no auth
+
+  # Ignore
+  application:
+    name: "Rainnny's AntiVPN"
+  banner:
+    location: "classpath:banner.txt"
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
+debug: false # Enable debug mode
