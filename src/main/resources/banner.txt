@@ -1,0 +1,8 @@
+    _       _   _  __   _____ _  _
+   /_\  _ _| |_(_) \ \ / / _ \ \| |
+  / _ \| ' \  _| |  \ V /|  _/ .` |
+ /_/ \_\_||_\__|_|   \_/ |_| |_|\_|
+
+ | API Version - v${application.version}
+ | Spring Version - ${spring-boot.formatted-version}
+_______________________________________
