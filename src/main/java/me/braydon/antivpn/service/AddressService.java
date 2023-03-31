@@ -284,7 +284,7 @@ public final class AddressService {
                 ) : null
             );
         }
-    
+        
         /**
          * The ASN data of an IP address.
          */
@@ -294,12 +294,12 @@ public final class AddressService {
              * The ASN number of an IP address.
              */
             private final long number;
-    
+            
             /**
              * The organization this ASN belongs to.
              */
             @NonNull private final String organization;
-    
+            
             /**
              * The network this ASN belongs to.
              */
