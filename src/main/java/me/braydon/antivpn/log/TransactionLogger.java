@@ -42,6 +42,13 @@ public class TransactionLogger implements ResponseBodyAdvice<Object> {
         HttpServletRequest request = ((ServletServerHttpRequest) rawRequest).getServletRequest();
         HttpServletResponse response = ((ServletServerHttpResponse) rawResponse).getServletResponse();
         
+        // Get the request ip address
+        String address = request.getRemoteAddr();
+        String cfAddress = request.getHeader("CF-Connecting-IP");
+        if (cfAddress != null) { // Use the CloudFlare address if present in the request
+            address = cfAddress;
+        }
+        
         // Getting params
         Map<String, String> params = new HashMap<>();
         for (Entry<String, String[]> entry : request.getParameterMap().entrySet()) {
@@ -59,7 +66,7 @@ public class TransactionLogger implements ResponseBodyAdvice<Object> {
         // Log the request
         log.info(String.format("[Req] %s | %s | '%s', params=%s, headers=%s",
             request.getMethod(),
-            request.getLocalAddr(),
+            address,
             request.getRequestURI(),
             params,
             headers
