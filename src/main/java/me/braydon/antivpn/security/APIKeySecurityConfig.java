@@ -60,7 +60,14 @@ public class APIKeySecurityConfig {
             }
             apiKey.use(); // API key was used
             repository.save(apiKey); // Save the API key
-            log.info(String.format("API key '%s' was used (uses=%s)", apiKey.getKey(), apiKey.getUses())); // Log the key
+    
+            // Log the key
+            log.info(String.format("API key '%s' was used (desc=%s, uses=%s)",
+                apiKey.getKey(),
+                apiKey.getDescription(),
+                apiKey.getUses()
+            ));
+            
             authentication.setAuthenticated(true); // We're authenticated
             return authentication;
         });
