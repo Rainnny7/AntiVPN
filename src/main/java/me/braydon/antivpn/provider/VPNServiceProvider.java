@@ -55,9 +55,9 @@ public abstract class VPNServiceProvider {
     @NonNull private final SLF4JLogger logger;
     
     /**
-     * The config file for this provider.
+     * The file where data for this provider is stored.
      */
-    @NonNull private final File configFile;
+    @NonNull private final File storageFile;
     
     /**
      * The scrape tasks for this provider.
@@ -82,10 +82,10 @@ public abstract class VPNServiceProvider {
         this.ipExpiration = ipExpiration;
         logger = (SLF4JLogger) org.apache.logging.log4j.LogManager.getLogger(name); // Setup the logger
         
-        // Handling configuration
-        configFile = new File("providers", getClass().getSimpleName() + ".json"); // The config file
-        if (configFile.exists()) { // Load the config if it exists
-            try (FileReader fileReader = new FileReader(configFile)) {
+        // Handling storage
+        storageFile = new File("providers", getClass().getSimpleName() + ".json"); // The storage file
+        if (storageFile.exists()) { // Load the storage file if it exists
+            try (FileReader fileReader = new FileReader(storageFile)) {
                 JsonObject jsonObject = AntiVPN.GSON.fromJson(fileReader, JsonObject.class);
                 
                 // Loading IPs
@@ -98,7 +98,7 @@ public abstract class VPNServiceProvider {
                 ex.printStackTrace();
             }
         }
-        // Register the provider
+        // Register this provider
         registry.add(this);
     }
     
@@ -188,9 +188,9 @@ public abstract class VPNServiceProvider {
     }
     
     /**
-     * Save the config file for this provider.
+     * Save the storage file for this provider.
      *
-     * @see #configFile for config file
+     * @see #storageFile for storage file
      */
     public void save() {
         if (!dirty) { // Not dirty, no need to save
@@ -198,26 +198,26 @@ public abstract class VPNServiceProvider {
         }
         dirty = false; // Remove the dirty flag
         try {
-            if (!configFile.exists()) { // Create the config file if it doesn't exist
-                File parent = configFile.getParentFile();
+            if (!storageFile.exists()) { // Create the storage file if it doesn't exist
+                File parent = storageFile.getParentFile();
                 if (parent != null && (!parent.exists())) { // Make the parent if it doesn't exist
                     parent.mkdirs();
                 }
-                configFile.createNewFile();
+                storageFile.createNewFile();
             }
             JsonObject jsonObject = new JsonObject();
             
-            // Adding the IPs to the config
+            // Adding the IPs to the storage
             JsonObject ipsJsonObject = new JsonObject();
             for (Map.Entry<String, Long> entry : ips.entrySet()) {
                 ipsJsonObject.addProperty(entry.getKey(), entry.getValue());
             }
             jsonObject.add("ips", ipsJsonObject);
             
-            // Write the json to the config file
-            try (FileWriter fileWriter = new FileWriter(configFile)) {
+            // Write the json to the storage file
+            try (FileWriter fileWriter = new FileWriter(storageFile)) {
                 fileWriter.write(AntiVPN.GSON.toJson(jsonObject));
-                log("Saved config file"); // Log that we saved the config file
+                log("Saved storage file"); // Log that we saved the storage file
             }
         } catch (IOException ex) {
             ex.printStackTrace();
