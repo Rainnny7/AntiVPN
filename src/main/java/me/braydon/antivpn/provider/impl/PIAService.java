@@ -57,7 +57,7 @@ public final class PIAService extends VPNServiceProvider {
     @NonNull private final Map<String, String> regions = Collections.synchronizedMap(new HashMap<>());
     
     public PIAService() {
-        super("Private Internet Access");
+        super("Private Internet Access", TimeUnit.DAYS.toMillis(14L));
     }
     
     /**

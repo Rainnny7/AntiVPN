@@ -1,15 +1,19 @@
 package me.braydon.antivpn.provider;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import me.braydon.antivpn.AntiVPN;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.slf4j.SLF4JLogger;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.BooleanSupplier;
@@ -39,11 +43,21 @@ public abstract class VPNServiceProvider {
     @NonNull private final String name;
     
     /**
+     * The millis it takes for an IP address to expire.
+     */
+    private final long ipExpiration;
+    
+    /**
      * The logger to use for this provider.
      *
      * @see SLF4JLogger for logger
      */
     @NonNull private final SLF4JLogger logger;
+    
+    /**
+     * The config file for this provider.
+     */
+    @NonNull private final File configFile;
     
     /**
      * The scrape tasks for this provider.
@@ -55,12 +69,37 @@ public abstract class VPNServiceProvider {
     /**
      * The IPs that belong to this provider.
      */
-    @NonNull private final Set<String> ips = Collections.synchronizedSet(new HashSet<>());
+    @NonNull private final Map<String, Long> ips = Collections.synchronizedMap(new HashMap<>());
     
-    public VPNServiceProvider(@NonNull String name) {
+    /**
+     * Whether this provider is
+     * dirty and needs to be saved.
+     */
+    private boolean dirty;
+    
+    public VPNServiceProvider(@NonNull String name, long ipExpiration) {
         this.name = name;
+        this.ipExpiration = ipExpiration;
         logger = (SLF4JLogger) org.apache.logging.log4j.LogManager.getLogger(name); // Setup the logger
-        registry.add(this); // Register the provider
+        
+        // Handling configuration
+        configFile = new File("providers", getClass().getSimpleName() + ".json"); // The config file
+        if (configFile.exists()) { // Load the config if it exists
+            try (FileReader fileReader = new FileReader(configFile)) {
+                JsonObject jsonObject = AntiVPN.GSON.fromJson(fileReader, JsonObject.class);
+                
+                // Loading IPs
+                JsonObject ipsJsonObject = jsonObject.getAsJsonObject("ips");
+                for (Map.Entry<String, JsonElement> entry : ipsJsonObject.entrySet()) {
+                    ips.put(entry.getKey(), entry.getValue().getAsLong());
+                }
+                log("Loaded {} IPs", ips.size()); // Log the loaded IPs
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        }
+        // Register the provider
+        registry.add(this);
     }
     
     /**
@@ -69,7 +108,7 @@ public abstract class VPNServiceProvider {
      * @param task the scrape task
      * @see ScrapeTask for scrape task
      */
-    protected void addScrapeTask(@NonNull ScrapeTask task) {
+    protected final void addScrapeTask(@NonNull ScrapeTask task) {
         scrapeTasks.add(task);
     }
     
@@ -78,8 +117,11 @@ public abstract class VPNServiceProvider {
      *
      * @param ip the ip to add
      */
-    public void addIp(@NonNull String ip, @NonNull String reason) {
-        if (ips.add(ip)) {
+    public final void addIp(@NonNull String ip, @NonNull String reason) {
+        boolean previouslyContained = ips.containsKey(ip); // Whether we stored the IP previously
+        ips.put(ip, System.currentTimeMillis());
+        if (!previouslyContained) { // Log adding the IP
+            dirty = true; // Mark as dirty
             log("Added IP ({}): {}", reason, ip); // Log the IP being added
         }
     }
@@ -90,8 +132,8 @@ public abstract class VPNServiceProvider {
      * @param ip the ip to check
      * @return true if it does, otherwise false
      */
-    public boolean hasIp(@NonNull String ip) {
-        return ips.contains(ip);
+    public final boolean hasIp(@NonNull String ip) {
+        return ips.containsKey(ip);
     }
     
     /**
@@ -116,7 +158,7 @@ public abstract class VPNServiceProvider {
      * @param params  the optional message params
      * @see Level for level
      */
-    protected void log(@NonNull String message, @NonNull Object... params) {
+    protected final void log(@NonNull String message, @NonNull Object... params) {
         log(Level.INFO, message, params);
     }
     
@@ -128,8 +170,58 @@ public abstract class VPNServiceProvider {
      * @param params  the optional message params
      * @see Level for level
      */
-    protected void log(@NonNull Level level, @NonNull String message, @NonNull Object... params) {
+    protected final void log(@NonNull Level level, @NonNull String message, @NonNull Object... params) {
         logger.log(level, message, params);
+    }
+    
+    /**
+     * Purge all expired IPs.
+     *
+     * @see #ipExpiration for expiration
+     */
+    public void purgeExpiredIps() {
+        boolean removed = ips.entrySet().removeIf(entry -> (System.currentTimeMillis() - entry.getValue()) >= ipExpiration);
+        if (removed) { // Did we remove anything?
+            dirty = true; // Mark as dirty
+            log("Purged expired IPs");
+        }
+    }
+    
+    /**
+     * Save the config file for this provider.
+     *
+     * @see #configFile for config file
+     */
+    public void save() {
+        if (!dirty) { // Not dirty, no need to save
+            return;
+        }
+        dirty = false; // Remove the dirty flag
+        try {
+            if (!configFile.exists()) { // Create the config file if it doesn't exist
+                File parent = configFile.getParentFile();
+                if (parent != null && (!parent.exists())) { // Make the parent if it doesn't exist
+                    parent.mkdirs();
+                }
+                configFile.createNewFile();
+            }
+            JsonObject jsonObject = new JsonObject();
+            
+            // Adding the IPs to the config
+            JsonObject ipsJsonObject = new JsonObject();
+            for (Map.Entry<String, Long> entry : ips.entrySet()) {
+                ipsJsonObject.addProperty(entry.getKey(), entry.getValue());
+            }
+            jsonObject.add("ips", ipsJsonObject);
+            
+            // Write the json to the config file
+            try (FileWriter fileWriter = new FileWriter(configFile)) {
+                fileWriter.write(AntiVPN.GSON.toJson(jsonObject));
+                log("Saved config file"); // Log that we saved the config file
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
     }
     
     /**
