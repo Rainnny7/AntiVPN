@@ -7,8 +7,6 @@ import com.maxmind.geoip2.model.CountryResponse;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.provider.VPNServiceProvider;
-import me.braydon.antivpn.repository.redis.AddressCacheRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -51,16 +49,6 @@ public final class AddressService {
         
         // Countries
         BLACKLISTED_COUNTRIES.add("Australia");
-    }
-    
-    /**
-     * The {@link AddressCacheRepository} to use.
-     */
-    @NonNull private final AddressCacheRepository addressCacheRepository;
-    
-    @Autowired
-    public AddressService(@NonNull AddressCacheRepository addressCacheRepository) {
-        this.addressCacheRepository = addressCacheRepository;
     }
     
     /**
@@ -141,11 +129,19 @@ public final class AddressService {
         
         /**
          * The ASN data of this address.
+         * <p>
+         * Only available if the lookup request specified it.
+         * </p>
+         *
+         * @see AsnData for data
          */
-        private final AddressService.AddressData.ASNData asn;
+        private final AsnData asn;
         
         /**
          * The geographical data of this address.
+         * <p>
+         * Only available if the lookup request specified it.
+         * </p>
          *
          * @see GeographicalData for data
          */
@@ -273,7 +269,7 @@ public final class AddressService {
                 risk, // The risk score we calculated
                 vpnProvider.get(), // Is the IP from a VPN provider?
                 blacklisted, // The blacklists the IP may be apart of
-                lookupAsn ? new ASNData( // The ASN number originating from the IP
+                lookupAsn ? new AsnData( // The ASN number originating from the IP
                     asnNumber.get(),
                     asnOrganization.get(),
                     asnNetwork.get()
@@ -289,7 +285,7 @@ public final class AddressService {
          * The ASN data of an IP address.
          */
         @AllArgsConstructor @Getter @ToString
-        public static class ASNData {
+        public static class AsnData {
             /**
              * The ASN number of an IP address.
              */
@@ -313,17 +309,11 @@ public final class AddressService {
         public static class GeographicalData {
             /**
              * The originating continent of an IP address.
-             * <p>
-             * Only available if the lookup request specified it.
-             * </p>
              */
             @NonNull private final String continent;
             
             /**
              * The originating country of an IP address.
-             * <p>
-             * Only available if the lookup request specified it.
-             * </p>
              */
             @NonNull private final String country;
         }

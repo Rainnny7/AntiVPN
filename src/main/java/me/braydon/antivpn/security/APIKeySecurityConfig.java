@@ -17,9 +17,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.preauth.AbstractPreAuthenticatedProcessingFilter;
 
 import javax.servlet.http.HttpServletRequest;
-import java.util.Date;
 import java.util.Set;
-import java.util.UUID;
 
 /**
  * Responsible for requiring authentication using
@@ -60,7 +58,7 @@ public class APIKeySecurityConfig {
             }
             apiKey.use(); // API key was used
             repository.save(apiKey); // Save the API key
-    
+            
             // Log the key
             log.info(String.format("API key '%s' was used (desc=%s, uses=%s)",
                 apiKey.getKey(),
