@@ -23,7 +23,6 @@ public final class PermissionConverter {
         @Override
         public APIKey.Permission convert(@NonNull String source) {
             try {
-                System.out.println("source = " + source);
                 return APIKey.Permission.valueOf(source);
             } catch (IllegalArgumentException ignored) {}
             return null;
