@@ -8,15 +8,11 @@ import org.junit.platform.commons.util.Preconditions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.data.mongo.DataMongoTest;
 
-import java.util.Date;
-import java.util.Set;
-import java.util.UUID;
-
 /**
  * @author Braydon
  */
 @DataMongoTest(properties = {
-    "spring.data.mongodb.uri=mongodb://admin:Fx2J8aU9e3bhnz2Viu2K@10.10.10.110:27017/antivpn?authSource=admin",
+    "spring.data.mongodb.uri=mongodb://admin:Fx2J8aU9e3bhnz2Viu2K@10.10.10.110:27017/antivpn_dev?authSource=admin",
 })
 public final class SecurityTests {
     @Autowired private APIKeyRepository apiKeyRepository;
