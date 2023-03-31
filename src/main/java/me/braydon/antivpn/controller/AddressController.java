@@ -53,6 +53,7 @@ public class AddressController {
     @GetMapping(value = "/stats")
     @ResponseBody
     public ResponseEntity<?> check() {
+        AuthUtils.validatePermissions(APIKey.Permission.VIEW_STATS); // Validate permissions
         LinkedHashMap<String, Object> stats = new LinkedHashMap<>();
         
         // Stat to show IPs per provider

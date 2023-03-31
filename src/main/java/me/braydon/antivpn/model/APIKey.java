@@ -105,6 +105,11 @@ public final class APIKey {
         /**
          * Allows modification of blacklists.
          */
-        BLACKLIST_MODIFY
+        BLACKLIST_MODIFY,
+        
+        /**
+         * Allows viewing statistics.
+         */
+        VIEW_STATS
     }
 }
