@@ -1,0 +1,20 @@
+version: '3.4'
+
+services:
+  antivpn:
+    image: antivpn
+    container_name: Rainnny-AntiVPN
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        UID: 1000
+        GID: 1000
+    ports:
+      - "7500:7500"
+    volumes:
+      - data:/usr/src/app
+
+volumes:
+  data:
