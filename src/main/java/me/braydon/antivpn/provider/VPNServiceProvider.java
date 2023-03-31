@@ -10,6 +10,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -19,6 +21,13 @@ import java.util.function.BooleanSupplier;
  */
 @Getter
 public abstract class VPNServiceProvider {
+    /**
+     * The thread pool to use for scraping of providers.
+     *
+     * @see ExecutorService for thread pool
+     */
+    public static final ExecutorService THREAD_POOL = Executors.newCachedThreadPool();
+    
     /**
      * The registered {@link VPNServiceProvider}'s.
      */
