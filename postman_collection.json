@@ -40,24 +40,12 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "{{API_ENDPOINT}}/check?ip=154.6.84.16&data=ASN, COUNTRY",
+					"raw": "{{API_ENDPOINT}}/stats",
 					"host": [
 						"{{API_ENDPOINT}}"
 					],
 					"path": [
-						"check"
-					],
-					"query": [
-						{
-							"key": "ip",
-							"value": "154.6.84.16",
-							"description": "The IP address to check"
-						},
-						{
-							"key": "data",
-							"value": "ASN, COUNTRY",
-							"description": "The optional types of data to retrieve"
-						}
+						"stats"
 					]
 				}
 			},
