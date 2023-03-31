@@ -6,14 +6,10 @@ import me.braydon.antivpn.provider.VPNServiceProvider;
 import me.braydon.antivpn.service.AddressService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.lang.management.ManagementFactory;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @author Braydon
@@ -25,30 +21,26 @@ public class AddressController {
     /**
      * The check route.
      * <p>
-     * This is used to determine a risk score for any given IPv4 address.
-     * The risk score is calculated based on whether the address is in any
-     * blacklists and/or the ASN, Country, or hostname of the originating
-     * address is blacklisted.
+     * This is used to perform lookups on an IP address.
      * </p>
      *
-     * @param ip the address to check
      * @return the json response
+     * @see AddressService.AddressData#from for more
      */
     @GetMapping(value = "/check")
     @ResponseBody
-    public ResponseEntity<?> check(@RequestParam @NonNull String ip) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        
-        //        authentication.getAuthorities().has
-        
-        return ResponseEntity.ok(AddressService.AddressData.from(ip));
+    public ResponseEntity<?> check(@RequestParam @NonNull String ip, @RequestParam(required = false) Set<AddressService.AddressLookupData> data) {
+        if (data == null) { // Default the list
+            data = new HashSet<>();
+        }
+        return ResponseEntity.ok(AddressService.AddressData.from(ip, data));
     }
     
-    @PostMapping(value = "/blacklist")
-    @ResponseBody
-    public ResponseEntity<?> blacklist(@RequestParam @NonNull String ip, @RequestParam @NonNull BlacklistType type) {
-        return ResponseEntity.ok("TESTING");
-    }
+//    @PostMapping(value = "/blacklist")
+//    @ResponseBody
+//    public ResponseEntity<?> blacklist(@RequestParam @NonNull String ip, @RequestParam @NonNull AddressService.BlacklistType type) {
+//        return ResponseEntity.ok("TESTING");
+//    }
     
     /**
      * The stats route.
@@ -70,22 +62,12 @@ public class AddressController {
         // Blacklisted stats
         Map<String, Integer> blacklisted = new HashMap<>();
         blacklisted.put("asns", AddressService.BLACKLISTED_ASN_NUMBERS.size());
-        blacklisted.put("hostnames", 0);
-        blacklisted.put("countries", 0);
+        blacklisted.put("countries", AddressService.BLACKLISTED_COUNTRIES.size());
         stats.put("blacklisted", blacklisted);
         
         // Application stats
         stats.put("uptime", ManagementFactory.getRuntimeMXBean().getUptime());
         
         return ResponseEntity.ok(stats);
-    }
-    
-    /**
-     * The type of a blacklist.
-     */
-    public enum BlacklistType {
-        ASN,
-        HOSTNAME,
-        COUNTRY
     }
 }
