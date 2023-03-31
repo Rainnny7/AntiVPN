@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.Date;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * The API key model.
@@ -24,6 +25,11 @@ public final class APIKey {
      * The API key.
      */
     @Id @NonNull private final String key;
+    
+    /**
+     * The description of this API key.
+     */
+    @NonNull private final String description;
     
     /**
      * The permissions this API key has.
@@ -74,6 +80,25 @@ public final class APIKey {
     public void use() {
         uses++;
         lastUsed = new Date();
+    }
+    
+    /**
+     * Generate a new API key with
+     * the given permissions.
+     *
+     * @param permissions the permissions
+     * @return the api key
+     */
+    @NonNull
+    public static APIKey generate(@NonNull APIKey.Permission... permissions) {
+        return new APIKey(
+            UUID.randomUUID().toString(),
+            "A cool lookin' API key",
+            Set.of(permissions),
+            0,
+            null,
+            new Date()
+        );
     }
     
     public enum Permission {

@@ -66,7 +66,7 @@ public class APIKeySecurityConfig {
         });
         // Create a default API key if none exist
         if (repository.count() == 0) {
-            APIKey apiKey = new APIKey(UUID.randomUUID().toString(), Set.of(APIKey.Permission.values()), 0, null, new Date());
+            APIKey apiKey = APIKey.generate(APIKey.Permission.values()); // Generate the API key
             Set<APIKey.Permission> permissions = apiKey.getPermissions(); // The permissions of the API key
             repository.save(apiKey); // Save the API key
             
