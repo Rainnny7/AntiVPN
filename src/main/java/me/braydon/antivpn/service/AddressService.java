@@ -2,6 +2,7 @@ package me.braydon.antivpn.service;
 
 import com.maxmind.geoip2.exception.GeoIp2Exception;
 import com.maxmind.geoip2.model.AsnResponse;
+import com.maxmind.geoip2.model.CountryResponse;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.provider.VPNServiceProvider;
@@ -14,7 +15,9 @@ import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -36,8 +39,19 @@ public final class AddressService {
      */
     public static final Set<Long> BLACKLISTED_ASN_NUMBERS = new HashSet<>();
     
+    /**
+     * The blacklisted countries.
+     * TODO: Make this automatic somehow, or at least configurable
+     */
+    public static final Set<String> BLACKLISTED_COUNTRIES = new HashSet<>();
+    
     static {
+        // ASN Numbers
         BLACKLISTED_ASN_NUMBERS.add(212238L);
+        BLACKLISTED_ASN_NUMBERS.add(18345L);
+        
+        // Countries
+        BLACKLISTED_COUNTRIES.add("Australia");
     }
     
     /**
@@ -64,6 +78,27 @@ public final class AddressService {
                 }
             }
         }, 2500L, 2500L);
+        
+        // Schedule a task to purge all expired IPs
+        long purgeDelay = TimeUnit.HOURS.toMillis(12L);
+        new Timer().schedule(new TimerTask() {
+            @Override
+            public void run() {
+                for (VPNServiceProvider provider : VPNServiceProvider.getRegistry()) {
+                    provider.purgeExpiredIps();
+                }
+            }
+        }, purgeDelay, purgeDelay);
+        
+        // Schedule a task to save the config files of all providers
+        new Timer().schedule(new TimerTask() {
+            @Override
+            public void run() {
+                for (VPNServiceProvider provider : VPNServiceProvider.getRegistry()) {
+                    provider.save();
+                }
+            }
+        }, TimeUnit.MINUTES.toMillis(1L), TimeUnit.MINUTES.toMillis(5L));
     }
     
     /**
@@ -92,37 +127,64 @@ public final class AddressService {
         private final boolean vpnProvider;
         
         /**
-         * Whether this address has a blacklisted ASN.
+         * The blacklists this address is on.
          */
-        private final boolean blacklistedAsn;
+        @NonNull private final Set<BlacklistType> blacklists;
         
         /**
-         * Whether this address has a blacklisted hostname.
+         * The ASN number of this address.
+         * <p>
+         * Only available if the lookup request specified it.
+         * </p>
          */
-        private final boolean blacklistedHostname;
+        private final Long asn;
         
         /**
-         * Whether this address is in a blacklisted country.
+         * The geographical data of this address.
+         *
+         * @see GeographicalData for data
          */
-        private final boolean blacklistedCountry;
+        @NonNull private final GeographicalData geographical;
+        
+        /**
+         * Check if this address is
+         * on the given blacklist.
+         *
+         * @param type the blacklist type
+         * @return true if blacklisted, otherwise false
+         * @see BlacklistType for type
+         */
+        public boolean isOnBlacklist(@NonNull BlacklistType type) {
+            return blacklists.contains(type);
+        }
         
         /**
          * Generate data for the given IP address.
          *
-         * @param ip the ip
+         * @param ip         the ip
+         * @param lookupData the optional types of data to lookup
          * @return the generated data
+         * @see AddressLookupData the data type
          */
         @NonNull @SneakyThrows
-        public static AddressData from(@NonNull String ip) {
+        public static AddressData from(@NonNull String ip, Set<AddressService.AddressLookupData> lookupData) {
             if (!ip.matches(ADDRESS_REGEX)) { // Provided IP is not a valid IPv4 address
                 throw new IllegalArgumentException("Invalid IP address");
             }
-            InetAddress inetAddress = InetAddress.getByName(ip);
+            log.info("Looking up data for IP: {}", ip); // Log the IP lookup
+            InetAddress inetAddress = InetAddress.getByName(ip); // The inet address
+            float risk = 0.0f; // The calculated risk score
             
-            float risk = 0.0f; // The risk score
             AtomicBoolean vpnProvider = new AtomicBoolean(); // Whether this address belongs to a VPN provider
-            AtomicBoolean blacklistedAsn = new AtomicBoolean(); // Whether this address has a blacklisted ASN
-            List<Supplier<Float>> riskSuppliers = new ArrayList<>(); // The suppliers for the risk score
+            Set<BlacklistType> blacklisted = new HashSet<>(); // The types of blacklists this address is on
+            AtomicLong asn = new AtomicLong(); // The ASN number of this address
+            
+            // Geographical data
+            AtomicReference<String> continent = new AtomicReference<>();
+            AtomicReference<String> country = new AtomicReference<>();
+            
+            // The suppliers for calculating the risk score
+            List<Supplier<Float>> riskSuppliers = new ArrayList<>();
             
             // Check if the IP belongs to any provider
             riskSuppliers.add(() -> {
@@ -136,22 +198,52 @@ public final class AddressService {
                 return 0f;
             });
             
-            // Check if the IP has a blacklisted ASN
-            riskSuppliers.add(() -> {
-                AtomicReference<Float> asnRisk = new AtomicReference<>();
-                MaxmindService.getInstance().submitTask(databaseReader -> {
-                    try {
-                        AsnResponse asn = databaseReader.asn(inetAddress);
-                        if (BLACKLISTED_ASN_NUMBERS.contains(asn.getAutonomousSystemNumber())) {
-                            blacklistedAsn.set(true); // IP has a blacklisted ASN
-                            asnRisk.set(0.4f);
+            // Looking up the ASN of the IP if specified in the lookup data
+            if (lookupData.contains(AddressLookupData.ASN)) {
+                log.info("Looking up ASN of IP: {}", ip); // Log the ASN lookup
+                riskSuppliers.add(() -> {
+                    AtomicReference<Float> asnRisk = new AtomicReference<>();
+                    MaxmindService.getInstance().submitTask(databaseReader -> {
+                        try {
+                            AsnResponse asnResponse = databaseReader.asn(inetAddress);
+                            asn.set(asnResponse.getAutonomousSystemNumber()); // The ASN number
+                            
+                            // Checking the blacklist
+                            if (BLACKLISTED_ASN_NUMBERS.contains(asn.get())) {
+                                blacklisted.add(BlacklistType.ASN);
+                                asnRisk.set(0.4f);
+                            }
+                        } catch (IOException | GeoIp2Exception ex) {
+                            ex.printStackTrace();
                         }
-                    } catch (IOException | GeoIp2Exception ex) {
-                        ex.printStackTrace();
-                    }
+                    });
+                    return asnRisk.get();
                 });
-                return asnRisk.get();
-            });
+            }
+            
+            // Looking up the country of the IP if specified in the lookup data
+            if (lookupData.contains(AddressLookupData.COUNTRY)) {
+                log.info("Looking up country of IP: {}", ip); // Log the country lookup
+                riskSuppliers.add(() -> {
+                    AtomicReference<Float> countryRisk = new AtomicReference<>();
+                    MaxmindService.getInstance().submitTask(databaseReader -> {
+                        try {
+                            CountryResponse countryResponse = databaseReader.country(inetAddress);
+                            continent.set(countryResponse.getContinent().getName()); // The continent
+                            country.set(countryResponse.getCountry().getName()); // The country
+                            
+                            // Checking the blacklist
+                            if (BLACKLISTED_COUNTRIES.contains(country.get())) {
+                                blacklisted.add(BlacklistType.COUNTRY);
+                                countryRisk.set(0.4f);
+                            }
+                        } catch (IOException | GeoIp2Exception ex) {
+                            ex.printStackTrace();
+                        }
+                    });
+                    return countryRisk.get();
+                });
+            }
             
             // Calculating the risk
             for (Supplier<Float> supplier : riskSuppliers) {
@@ -168,10 +260,51 @@ public final class AddressService {
                 ip,
                 risk,
                 vpnProvider.get(),
-                blacklistedAsn.get(),
-                false,
-                false
+                blacklisted,
+                asn.get(),
+                new GeographicalData(
+                    continent.get(),
+                    country.get()
+                )
             );
         }
+    
+        /**
+         * The geographical data of an IP address.
+         */
+        @AllArgsConstructor @Getter @ToString
+        public static class GeographicalData {
+            /**
+             * The originating continent of an IP address.
+             * <p>
+             * Only available if the lookup request specified it.
+             * </p>
+             */
+            private final String continent;
+            
+            /**
+             * The originating country of an IP address.
+             * <p>
+             * Only available if the lookup request specified it.
+             * </p>
+             */
+            private final String country;
+        }
+    }
+    
+    /**
+     * The additional data you can optionally lookup.
+     */
+    public enum AddressLookupData {
+        ASN,
+        COUNTRY
+    }
+    
+    /**
+     * The type of blacklists.
+     */
+    public enum BlacklistType {
+        ASN,
+        COUNTRY
     }
 }
