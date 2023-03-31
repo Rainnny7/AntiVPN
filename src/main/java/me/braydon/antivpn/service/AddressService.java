@@ -1,5 +1,6 @@
 package me.braydon.antivpn.service;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.maxmind.geoip2.exception.GeoIp2Exception;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CountryResponse;
@@ -114,6 +115,7 @@ public final class AddressService {
     @Getter
     @EqualsAndHashCode(onlyExplicitlyIncluded = true)
     @ToString
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class AddressData {
         /**
          * The IP address.
@@ -138,19 +140,16 @@ public final class AddressService {
         @NonNull private final Set<BlacklistType> blacklists;
         
         /**
-         * The ASN number of this address.
-         * <p>
-         * Only available if the lookup request specified it.
-         * </p>
+         * The ASN data of this address.
          */
-        private final Long asn;
+        private final AddressService.AddressData.ASNData asn;
         
         /**
          * The geographical data of this address.
          *
          * @see GeographicalData for data
          */
-        @NonNull private final GeographicalData geographical;
+        private final GeographicalData geographical;
         
         /**
          * Check if this address is
@@ -177,20 +176,25 @@ public final class AddressService {
             if (!ip.matches(ADDRESS_REGEX)) { // Provided IP is not a valid IPv4 address
                 throw new IllegalArgumentException("Invalid IP address");
             }
+            boolean lookupAsn = lookupData.contains(AddressLookupData.ASN); // Whether to lookup ASN data
+            boolean lookupCountry = lookupData.contains(AddressLookupData.COUNTRY); // Whether to lookup country data
+            
             log.info("Looking up data for IP: {}", ip); // Log the IP lookup
             InetAddress inetAddress = InetAddress.getByName(ip); // The inet address
             float risk = 0.0f; // The calculated risk score
+            List<Supplier<Float>> riskSuppliers = new ArrayList<>(); // The suppliers for calculating the risk score
             
             AtomicBoolean vpnProvider = new AtomicBoolean(); // Whether this address belongs to a VPN provider
             Set<BlacklistType> blacklisted = new HashSet<>(); // The types of blacklists this address is on
-            AtomicLong asn = new AtomicLong(); // The ASN number of this address
+            
+            // ASN data
+            AtomicLong asnNumber = new AtomicLong();
+            AtomicReference<String> asnOrganization = new AtomicReference<>();
+            AtomicReference<String> asnNetwork = new AtomicReference<>();
             
             // Geographical data
             AtomicReference<String> continent = new AtomicReference<>();
             AtomicReference<String> country = new AtomicReference<>();
-            
-            // The suppliers for calculating the risk score
-            List<Supplier<Float>> riskSuppliers = new ArrayList<>();
             
             // Check if the IP belongs to any provider
             riskSuppliers.add(() -> {
@@ -205,17 +209,19 @@ public final class AddressService {
             });
             
             // Looking up the ASN of the IP if specified in the lookup data
-            if (lookupData.contains(AddressLookupData.ASN)) {
+            if (lookupAsn) {
                 log.info("Looking up ASN of IP: {}", ip); // Log the ASN lookup
                 riskSuppliers.add(() -> {
                     AtomicReference<Float> asnRisk = new AtomicReference<>();
                     MaxmindService.getInstance().submitTask(databaseReader -> {
                         try {
                             AsnResponse asnResponse = databaseReader.asn(inetAddress);
-                            asn.set(asnResponse.getAutonomousSystemNumber()); // The ASN number
+                            asnNumber.set(asnResponse.getAutonomousSystemNumber()); // The ASN number
+                            asnOrganization.set(asnResponse.getAutonomousSystemOrganization()); // The ASN organization
+                            asnNetwork.set(asnResponse.getNetwork().toString()); // The ASN network
                             
                             // Checking the blacklist
-                            if (BLACKLISTED_ASN_NUMBERS.contains(asn.get())) {
+                            if (BLACKLISTED_ASN_NUMBERS.contains(asnNumber.get())) {
                                 blacklisted.add(BlacklistType.ASN);
                                 asnRisk.set(0.4f);
                             }
@@ -228,7 +234,7 @@ public final class AddressService {
             }
             
             // Looking up the country of the IP if specified in the lookup data
-            if (lookupData.contains(AddressLookupData.COUNTRY)) {
+            if (lookupCountry) {
                 log.info("Looking up country of IP: {}", ip); // Log the country lookup
                 riskSuppliers.add(() -> {
                     AtomicReference<Float> countryRisk = new AtomicReference<>();
@@ -267,12 +273,37 @@ public final class AddressService {
                 risk, // The risk score we calculated
                 vpnProvider.get(), // Is the IP from a VPN provider?
                 blacklisted, // The blacklists the IP may be apart of
-                asn.get(), // The ASN number originating from the IP
-                new GeographicalData( // The geographical data of the IP
+                lookupAsn ? new ASNData( // The ASN number originating from the IP
+                    asnNumber.get(),
+                    asnOrganization.get(),
+                    asnNetwork.get()
+                ) : null,
+                lookupCountry ? new GeographicalData( // The geographical data of the IP
                     continent.get(),
                     country.get()
-                )
+                ) : null
             );
+        }
+    
+        /**
+         * The ASN data of an IP address.
+         */
+        @AllArgsConstructor @Getter @ToString
+        public static class ASNData {
+            /**
+             * The ASN number of an IP address.
+             */
+            private final long number;
+    
+            /**
+             * The organization this ASN belongs to.
+             */
+            @NonNull private final String organization;
+    
+            /**
+             * The network this ASN belongs to.
+             */
+            @NonNull private final String network;
         }
         
         /**
@@ -286,7 +317,7 @@ public final class AddressService {
              * Only available if the lookup request specified it.
              * </p>
              */
-            private final String continent;
+            @NonNull private final String continent;
             
             /**
              * The originating country of an IP address.
@@ -294,7 +325,7 @@ public final class AddressService {
              * Only available if the lookup request specified it.
              * </p>
              */
-            private final String country;
+            @NonNull private final String country;
         }
     }
     
