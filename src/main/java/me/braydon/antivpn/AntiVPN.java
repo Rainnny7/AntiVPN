@@ -52,11 +52,15 @@ public class AntiVPN {
     @SneakyThrows
     public static void main(@NonNull String[] args) {
         File config = new File("application.yml");
-        if (!config.exists()) { // Saving the default configuration if it doesn't exist
+        if (!config.exists()) { // Saving the default config if it doesn't exist locally
             Files.copy(Objects.requireNonNull(AntiVPN.class.getResourceAsStream("/application.yml")), config.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            log.info("Default configuration saved, please re-launch the application");
+            log.info("Saved the default configuration to '{}', please re-launch the application", // Log the default config being saved
+                config.getAbsolutePath()
+            );
             return;
         }
+        log.info("Found configuration at '{}'", config.getAbsolutePath()); // Log the found config
+        
         SpringApplication.run(AntiVPN.class, args); // Load the application
     }
     
