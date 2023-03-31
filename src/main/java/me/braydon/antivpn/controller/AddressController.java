@@ -2,6 +2,8 @@ package me.braydon.antivpn.controller;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import me.braydon.antivpn.common.AuthUtils;
+import me.braydon.antivpn.model.APIKey;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import me.braydon.antivpn.service.AddressService;
 import org.springframework.http.MediaType;
@@ -36,11 +38,12 @@ public class AddressController {
         return ResponseEntity.ok(AddressService.AddressData.from(ip, data));
     }
     
-//    @PostMapping(value = "/blacklist")
-//    @ResponseBody
-//    public ResponseEntity<?> blacklist(@RequestParam @NonNull String ip, @RequestParam @NonNull AddressService.BlacklistType type) {
-//        return ResponseEntity.ok("TESTING");
-//    }
+    @PostMapping(value = "/blacklist")
+    @ResponseBody
+    public ResponseEntity<?> blacklist(@RequestParam @NonNull String ip, @RequestParam @NonNull AddressService.BlacklistType type) {
+        AuthUtils.validatePermissions(APIKey.Permission.BLACKLIST_MODIFY); // Validate permissions
+        return ResponseEntity.ok("(un?)blacklist " + ip + " in type " + type);
+    }
     
     /**
      * The stats route.

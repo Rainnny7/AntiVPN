@@ -16,6 +16,7 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.io.File;
+import java.net.http.HttpClient;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.Objects;
@@ -26,6 +27,9 @@ public class AntiVPN {
     public static final Gson GSON = new GsonBuilder()
                                         .serializeNulls()
                                         .create();
+    public static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+                                                     .followRedirects(HttpClient.Redirect.ALWAYS)
+                                                     .build(); // The HTTP client to use
     
     @Value("${server.address}")
     private String address;

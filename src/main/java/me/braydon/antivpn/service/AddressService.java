@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import me.braydon.antivpn.repository.redis.AddressCacheRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -26,7 +25,6 @@ import java.util.function.Supplier;
  */
 @Service
 @Slf4j(topic = "VPN Service")
-@Order(20)
 public final class AddressService {
     /**
      * The regex expression for validating IPv4 addresses.
@@ -90,7 +88,7 @@ public final class AddressService {
             }
         }, purgeDelay, purgeDelay);
         
-        // Schedule a task to save the config files of all providers
+        // Schedule a task to save the storage files of all providers
         new Timer().schedule(new TimerTask() {
             @Override
             public void run() {
@@ -99,6 +97,14 @@ public final class AddressService {
                 }
             }
         }, TimeUnit.MINUTES.toMillis(1L), TimeUnit.MINUTES.toMillis(5L));
+        
+        // Add a shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            // Save the storage files of all providers
+            for (VPNServiceProvider provider : VPNServiceProvider.getRegistry()) {
+                provider.save();
+            }
+        }));
     }
     
     /**
@@ -253,22 +259,22 @@ public final class AddressService {
                 }
                 risk += value;
             }
-            risk = Math.min(risk, 1.0f); // Ensure the risk doesn't exceed 1.0
+            risk = Math.min(risk, 1.0f); // Limit the risk to 1.0
             
             // Return the address data
             return new AddressData(
-                ip,
-                risk,
-                vpnProvider.get(),
-                blacklisted,
-                asn.get(),
-                new GeographicalData(
+                ip, // The IP address
+                risk, // The risk score we calculated
+                vpnProvider.get(), // Is the IP from a VPN provider?
+                blacklisted, // The blacklists the IP may be apart of
+                asn.get(), // The ASN number originating from the IP
+                new GeographicalData( // The geographical data of the IP
                     continent.get(),
                     country.get()
                 )
             );
         }
-    
+        
         /**
          * The geographical data of an IP address.
          */

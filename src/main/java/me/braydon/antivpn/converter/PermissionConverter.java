@@ -24,7 +24,8 @@ public final class PermissionConverter {
         public APIKey.Permission convert(@NonNull String source) {
             try {
                 return APIKey.Permission.valueOf(source);
-            } catch (IllegalArgumentException ignored) {}
+            } catch (IllegalArgumentException ignored) {
+            }
             return null;
         }
     }
