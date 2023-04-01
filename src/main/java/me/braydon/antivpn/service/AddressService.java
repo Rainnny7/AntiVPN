@@ -174,7 +174,7 @@ public final class AddressService {
                 throw new IllegalArgumentException("Invalid IP address");
             }
             boolean lookupAsn = lookupData.contains(AddressLookupData.ASN); // Whether to lookup ASN data
-            boolean lookupCountry = lookupData.contains(AddressLookupData.COUNTRY); // Whether to lookup country data
+            boolean lookupGeographical = lookupData.contains(AddressLookupData.GEOGRAPHICAL); // Whether to lookup geographical data
             
             log.info("Looking up data for IP: {}", ip); // Log the IP lookup
             InetAddress inetAddress = InetAddress.getByName(ip); // The inet address
@@ -234,9 +234,9 @@ public final class AddressService {
                 });
             }
             
-            // Looking up the country of the IP if specified in the lookup data
-            if (lookupCountry) {
-                log.info("Looking up country of IP: {}", ip); // Log the country lookup
+            // Looking up the geographical data of the IP if specified in the lookup data
+            if (lookupGeographical) {
+                log.info("Looking up geographical data of IP: {}", ip); // Log the geo lookup
                 riskSuppliers.add(() -> {
                     AtomicReference<Float> countryRisk = new AtomicReference<>();
                     MaxmindService.getInstance().submitTask(databaseReader -> {
@@ -250,7 +250,7 @@ public final class AddressService {
                             longitude.set(location.getLongitude()); // The location longitude
                             timezone.set(location.getTimeZone()); // The location timezone
                             
-                            // Checking the blacklist
+                            // Checking if the country is blacklisted
                             if (BLACKLISTED_COUNTRIES.contains(country.get())) {
                                 blacklisted.add(BlacklistType.COUNTRY);
                                 countryRisk.set(0.4f);
@@ -284,7 +284,7 @@ public final class AddressService {
                     asnOrganization.get(),
                     asnNetwork.get()
                 ) : null,
-                lookupCountry ? new GeographicalData( // The geographical data of the IP
+                lookupGeographical ? new GeographicalData( // The geographical data of the IP
                     continent.get(),
                     country.get(),
                     city.get(),
@@ -358,7 +358,7 @@ public final class AddressService {
      */
     public enum AddressLookupData {
         ASN,
-        COUNTRY
+        GEOGRAPHICAL
     }
     
     /**
