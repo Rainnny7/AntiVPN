@@ -3,7 +3,8 @@ package me.braydon.antivpn.service;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.maxmind.geoip2.exception.GeoIp2Exception;
 import com.maxmind.geoip2.model.AsnResponse;
-import com.maxmind.geoip2.model.CountryResponse;
+import com.maxmind.geoip2.model.CityResponse;
+import com.maxmind.geoip2.record.Location;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.provider.VPNServiceProvider;
@@ -191,6 +192,10 @@ public final class AddressService {
             // Geographical data
             AtomicReference<String> continent = new AtomicReference<>();
             AtomicReference<String> country = new AtomicReference<>();
+            AtomicReference<String> city = new AtomicReference<>();
+            AtomicReference<Double> latitude = new AtomicReference<>();
+            AtomicReference<Double> longitude = new AtomicReference<>();
+            AtomicReference<String> timezone = new AtomicReference<>();
             
             // Check if the IP belongs to any provider
             riskSuppliers.add(() -> {
@@ -236,9 +241,14 @@ public final class AddressService {
                     AtomicReference<Float> countryRisk = new AtomicReference<>();
                     MaxmindService.getInstance().submitTask(databaseReader -> {
                         try {
-                            CountryResponse countryResponse = databaseReader.country(inetAddress);
-                            continent.set(countryResponse.getContinent().getName()); // The continent
-                            country.set(countryResponse.getCountry().getName()); // The country
+                            CityResponse cityResponse = databaseReader.city(inetAddress);
+                            Location location = cityResponse.getLocation(); // The location of the IP
+                            continent.set(cityResponse.getContinent().getName()); // The continent
+                            country.set(cityResponse.getCountry().getName()); // The country
+                            city.set(cityResponse.getCity().getName()); // The city
+                            latitude.set(location.getLatitude()); // The location latitude
+                            longitude.set(location.getLongitude()); // The location longitude
+                            timezone.set(location.getTimeZone()); // The location timezone
                             
                             // Checking the blacklist
                             if (BLACKLISTED_COUNTRIES.contains(country.get())) {
@@ -276,7 +286,11 @@ public final class AddressService {
                 ) : null,
                 lookupCountry ? new GeographicalData( // The geographical data of the IP
                     continent.get(),
-                    country.get()
+                    country.get(),
+                    city.get(),
+                    latitude.get(),
+                    longitude.get(),
+                    timezone.get()
                 ) : null
             );
         }
@@ -316,6 +330,26 @@ public final class AddressService {
              * The originating country of an IP address.
              */
             @NonNull private final String country;
+            
+            /**
+             * The originating city of an IP address.
+             */
+            @NonNull private final String city;
+            
+            /**
+             * The latitude of the location of an IP address.
+             */
+            @NonNull private final double latitude;
+            
+            /**
+             * The longitude of the location of an IP address.
+             */
+            @NonNull private final double longitude;
+            
+            /**
+             * The timezone of the location of an IP address.
+             */
+            @NonNull private final String timezone;
         }
     }
     
