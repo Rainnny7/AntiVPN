@@ -10,18 +10,20 @@ import com.maxmind.geoip2.record.Country;
 import com.maxmind.geoip2.record.Location;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
+import me.braydon.antivpn.AntiVPN;
+import me.braydon.antivpn.cache.CachedAddressData;
 import me.braydon.antivpn.provider.VPNServiceProvider;
+import me.braydon.antivpn.repository.redis.AddressCacheRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -121,7 +123,7 @@ public final class AddressService {
     /**
      * Data for an IP address.
      */
-    @AllArgsConstructor(access = AccessLevel.PROTECTED)
+    @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
     @Getter
     @EqualsAndHashCode(onlyExplicitlyIncluded = true)
     @ToString
@@ -130,7 +132,7 @@ public final class AddressService {
         /**
          * The IP address.
          */
-        @EqualsAndHashCode.Include @NonNull private final String ip;
+        @Id @EqualsAndHashCode.Include @NonNull private final String ip;
         
         /**
          * The risk score of this IP address.
@@ -170,6 +172,12 @@ public final class AddressService {
         private final GeographicalData geographical;
         
         /**
+         * The timestamp of when this address
+         * was cached, null if not cached.
+         */
+        @Transient private Long cached;
+        
+        /**
          * Check if this address is
          * on the given blacklist.
          *
@@ -179,6 +187,13 @@ public final class AddressService {
          */
         public boolean isOnBlacklist(@NonNull BlacklistType type) {
             return blacklists.contains(type);
+        }
+        
+        /**
+         * Flag this address as cached.
+         */
+        public void flagCached(long timestamp) {
+            cached = timestamp;
         }
         
         /**
@@ -192,14 +207,36 @@ public final class AddressService {
          * @see JedisConnectionFactory for jedis factory
          */
         @NonNull @SneakyThrows
-        public static AddressData from(@NonNull JedisConnectionFactory jedisFactory, @NonNull String ip, Set<AddressService.AddressLookupData> lookupData) {
+        public static AddressData from(@NonNull JedisConnectionFactory jedisFactory,
+                                       @NonNull AddressCacheRepository addressCacheRepository,
+                                       @NonNull String ip, Set<AddressService.AddressLookupData> lookupData) {
             if (!ip.matches(ADDRESS_REGEX)) { // Provided IP is not a valid IPv4 address
                 throw new IllegalArgumentException("Invalid IP address");
             }
             boolean lookupAsn = lookupData.contains(AddressLookupData.ASN); // Whether to lookup ASN data
             boolean lookupGeographical = lookupData.contains(AddressLookupData.GEOGRAPHICAL); // Whether to lookup geographical data
-            
             log.info("Looking up data for IP: {}", ip); // Log the IP lookup
+            
+            // Checking the cache
+            long beforeCache = System.currentTimeMillis(); // Before the cache lookup started
+            Optional<CachedAddressData> optionalCache = addressCacheRepository.findById(ip);
+            if (optionalCache.isPresent()) { // Return the cached data
+                CachedAddressData cache = optionalCache.get(); // The cached address data
+                AddressData addressData = AntiVPN.GSON.fromJson(cache.getJson(), AddressData.class);
+                boolean hasAllData = (lookupAsn && addressData.getAsn() != null)
+                                         && (lookupGeographical && addressData.getGeographical() != null);
+                log.info("Found cached data for IP {} (Took {}ms){}",
+                    ip,
+                    System.currentTimeMillis() - beforeCache,
+                    hasAllData ? "" : ", but it's missing data, running a full lookup..."
+                ); // Log that we found the cache
+                
+                if (hasAllData) { // Are we trying to lookup more data that we have cached?
+                    addressData.flagCached(cache.getTimestamp()); // Flag the cached data
+                    return addressData; // Return the cached data
+                }
+            }
+            // Running a full lookup
             InetAddress inetAddress = InetAddress.getByName(ip); // The inet address
             float risk = 0.0f; // The calculated risk score
             List<Supplier<Float>> riskSuppliers = new ArrayList<>(); // The suppliers for calculating the risk score
@@ -311,7 +348,7 @@ public final class AddressService {
             log.info("Risk calculation complete in {}ms", System.currentTimeMillis() - before); // Log timings
             
             // Return the address data
-            return new AddressData(
+            AddressData addressData = new AddressData(
                 ip, // The IP address
                 risk, // The risk score we calculated
                 vpnProvider.get(), // Is the IP from a VPN provider?
@@ -319,6 +356,9 @@ public final class AddressService {
                 asnData.get(), // The ASN data of the IP
                 geographicalData.get() // The geographical data of the IP
             );
+            addressCacheRepository.save(new CachedAddressData(ip,
+                AntiVPN.GSON.toJson(addressData), System.currentTimeMillis())); // Cache the address data
+            return addressData;
         }
         
         /**
