@@ -8,9 +8,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        UID: 1000
-        GID: 1000
     ports:
       - "7500:7500"
     volumes:
