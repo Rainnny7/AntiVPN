@@ -11,7 +11,7 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{API_ENDPOINT}}/check?ip=154.6.84.16&data=ASN, COUNTRY",
+          "raw": "{{API_ENDPOINT}}/check?ip=98.159.234.36&data=ASN, GEOGRAPHICAL",
           "host": [
             "{{API_ENDPOINT}}"
           ],
@@ -21,12 +21,12 @@
           "query": [
             {
               "key": "ip",
-              "value": "154.6.84.16",
+              "value": "98.159.234.36",
               "description": "The IP address to check"
             },
             {
               "key": "data",
-              "value": "ASN, COUNTRY",
+              "value": "ASN, GEOGRAPHICAL",
               "description": "The optional types of data to retrieve"
             }
           ]
