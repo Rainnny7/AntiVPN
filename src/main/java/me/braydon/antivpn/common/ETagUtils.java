@@ -37,8 +37,7 @@ public final class ETagUtils {
         String hex = builder.toString(); // The hex from the response content
         String etag = "\"" + hex + "\"";
         
-        log.info("ETag: {}", etag); // Log the eTag for the response
         bodyBuilder.eTag(etag); // Set the eTag for the response
-        return bodyBuilder.build();
+        return bodyBuilder.body(body); // Return the response entity
     }
 }
