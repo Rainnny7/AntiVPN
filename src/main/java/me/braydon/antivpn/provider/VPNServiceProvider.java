@@ -1,21 +1,20 @@
 package me.braydon.antivpn.provider;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import me.braydon.antivpn.AntiVPN;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.slf4j.SLF4JLogger;
+import org.springframework.data.redis.connection.DefaultStringRedisConnection;
+import org.springframework.data.redis.connection.StringRedisConnection;
+import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -25,21 +24,10 @@ import java.util.function.BooleanSupplier;
  */
 @Getter
 public abstract class VPNServiceProvider {
-    private static int THREAD_COUNT; // The thread count to keep track of threads
-    
-    /**
-     * The thread pool to use for scraping of providers.
-     *
-     * @see ExecutorService for thread pool
-     */
-    public static final ExecutorService THREAD_POOL = Executors.newFixedThreadPool(12, task -> {
-        return new Thread(task, "AntiVPN #" + (THREAD_COUNT++)); // Create a new thread
-    });
-    
     /**
      * The registered {@link VPNServiceProvider}'s.
      */
-    @Getter private static final Set<VPNServiceProvider> registry = new HashSet<>();
+    @Getter private static final Set<VPNServiceProvider> registry = Collections.synchronizedSet(new HashSet<>());
     
     /**
      * The name of this provider.
@@ -47,7 +35,8 @@ public abstract class VPNServiceProvider {
     @NonNull private final String name;
     
     /**
-     * The millis it takes for an IP address to expire.
+     * The expiration time for IPs
+     * belonging to this provider.
      */
     private final long ipExpiration;
     
@@ -59,51 +48,27 @@ public abstract class VPNServiceProvider {
     @NonNull private final SLF4JLogger logger;
     
     /**
-     * The file where data for this provider is stored.
-     */
-    @NonNull private final File storageFile;
-    
-    /**
      * The scrape tasks for this provider.
      *
      * @see ScrapeTask for scrape task
      */
-    @NonNull private final LinkedHashSet<ScrapeTask> scrapeTasks = new LinkedHashSet<>();
+    @NonNull private final Set<ScrapeTask> scrapeTasks = Collections.synchronizedSet(new LinkedHashSet<>());
     
     /**
-     * The IPs that belong to this provider.
+     * The scraped IPs.
+     * <p>
+     * This just acts as a cache so we don't flood the database
+     * with a query each additional IP added, and instead we can
+     * just add them in bulk.
+     * </p>
      */
-    @NonNull private final Map<String, Long> ips = Collections.synchronizedMap(new HashMap<>());
-    
-    /**
-     * Whether this provider is
-     * dirty and needs to be saved.
-     */
-    private boolean dirty;
+    @NonNull private final Set<String> scrapedIps = Collections.synchronizedSet(new HashSet<>());
     
     public VPNServiceProvider(@NonNull String name, long ipExpiration) {
         this.name = name;
         this.ipExpiration = ipExpiration;
         logger = (SLF4JLogger) org.apache.logging.log4j.LogManager.getLogger(name); // Setup the logger
-        
-        // Handling storage
-        storageFile = new File("providers", getClass().getSimpleName() + ".json"); // The storage file
-        if (storageFile.exists()) { // Load the storage file if it exists
-            try (FileReader fileReader = new FileReader(storageFile)) {
-                JsonObject jsonObject = AntiVPN.GSON.fromJson(fileReader, JsonObject.class);
-                
-                // Loading IPs
-                JsonObject ipsJsonObject = jsonObject.getAsJsonObject("ips");
-                for (Map.Entry<String, JsonElement> entry : ipsJsonObject.entrySet()) {
-                    ips.put(entry.getKey(), entry.getValue().getAsLong());
-                }
-                log("Loaded {} IPs", ips.size()); // Log the loaded IPs
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
-        }
-        // Register this provider
-        registry.add(this);
+        registry.add(this); // Register this provider
     }
     
     /**
@@ -121,23 +86,46 @@ public abstract class VPNServiceProvider {
      *
      * @param ip the ip to add
      */
-    public final void addIp(@NonNull String ip, @NonNull String reason) {
-        boolean previouslyContained = ips.containsKey(ip); // Whether we stored the IP previously
-        ips.put(ip, System.currentTimeMillis());
-        if (!previouslyContained) { // Log adding the IP
-            dirty = true; // Mark as dirty
-            log("Added IP ({}): {}", reason, ip); // Log the IP being added
-        }
+    public final void addIp(@NonNull String ip) {
+        scrapedIps.add(ip); // Add the IP
     }
     
     /**
      * Check if this provider has the given IP.
      *
-     * @param ip the ip to check
+     * @param jedisFactory the jedis factory instance
+     * @param ip           the ip to check
      * @return true if it does, otherwise false
+     * @see JedisConnectionFactory for jedis factory
      */
-    public final boolean hasIp(@NonNull String ip) {
-        return ips.containsKey(ip);
+    public final boolean hasIp(@NonNull JedisConnectionFactory jedisFactory, @NonNull String ip) {
+        long before = System.currentTimeMillis();
+        try (StringRedisConnection redis = new DefaultStringRedisConnection(jedisFactory.getConnection())) {
+            boolean exists = redis.exists(getRedisKey() + ":" + ip); // Does the IP exist for this provider?
+            log("Checked if the IP {} exists in the database in {}ms", ip, System.currentTimeMillis() - before); // Log timings
+            return exists;
+        }
+    }
+    
+    /**
+     * Get the IPs that belong to this provider.
+     *
+     * @param jedisFactory the jedis factory instance
+     * @return the ips
+     * @see StringRedisConnection for jedis factory
+     */
+    @NonNull
+    public final Set<String> getIps(@NonNull JedisConnectionFactory jedisFactory) {
+        long before = System.currentTimeMillis();
+        Set<String> ips = new HashSet<>();
+        try (StringRedisConnection redis = new DefaultStringRedisConnection(jedisFactory.getConnection())) {
+            String redisKey = getRedisKey();
+            for (String key : redis.keys(redisKey + ":*")) {
+                ips.add(key.substring(redisKey.length() + 1));
+            }
+        }
+        log("Retrieved {} IPs from the database in {}ms", ips.size(), System.currentTimeMillis() - before); // Log timings
+        return ips;
     }
     
     /**
@@ -145,12 +133,47 @@ public abstract class VPNServiceProvider {
      *
      * @see ScrapeTask for scrape task
      */
-    public final void scrape() {
+    public final void scrape(@NonNull JedisConnectionFactory jedisFactory) {
+        int totalScrapeTasks = scrapeTasks.size();
+        AtomicInteger completed = new AtomicInteger();
         for (ScrapeTask scrapeTask : scrapeTasks) {
             if (!scrapeTask.canRun()) { // Can't run
                 continue;
             }
-            scrapeTask.run(); // Run the task
+            AntiVPN.THREAD_POOL.submit(() -> {
+                try {
+                    scrapeTask.run(); // Run the task
+                    completed.addAndGet(1); // Completed a task
+                } catch (Exception ex) {
+                    log(Level.ERROR, "An error occurred while scraping the provider", ex);
+                }
+            });
+        }
+        // Wait for all scrape tasks to complete. This is done so
+        // we can add the scraped IPs in bulk instead of adding them
+        // one by one which would flood the database with queries
+        while (completed.get() < totalScrapeTasks) {
+            try {
+                Thread.sleep(100L);
+            } catch (InterruptedException ex) {
+                ex.printStackTrace();
+            }
+        }
+        if (!scrapedIps.isEmpty()) { // Insert the scraped IPs into the database if we have any
+            log("Adding {} scraped IPs to the database...", scrapedIps.size());
+            
+            String redisKey = getRedisKey() + ":"; // The redis key
+            String now = String.valueOf(System.currentTimeMillis()); // The current timestamp
+            try (StringRedisConnection redis = new DefaultStringRedisConnection(jedisFactory.getConnection())) {
+                redis.openPipeline(); // Open a pipeline
+                for (String scrapedIp : scrapedIps) { // Add the IPs to the database
+                    redis.set(redisKey + scrapedIp, now);
+                }
+                int inserted = redis.closePipeline().size(); // Close the pipeline which then returns the results
+                
+                // Log the IPs being added
+                log("Successfully inserted {} IPs into the database", inserted);
+            }
         }
     }
     
@@ -179,53 +202,31 @@ public abstract class VPNServiceProvider {
     }
     
     /**
-     * Purge all expired IPs.
+     * Purge IPs in the database that have expired.
      *
-     * @see #ipExpiration for expiration
+     * @param jedisFactory the jedis factory instance
+     * @see StringRedisConnection for jedis factory
      */
-    public void purgeExpiredIps() {
-        boolean removed = ips.entrySet().removeIf(entry -> (System.currentTimeMillis() - entry.getValue()) >= ipExpiration);
-        if (removed) { // Did we remove anything?
-            dirty = true; // Mark as dirty
-            log("Purged expired IPs");
+    public final void purgeExpiredIps(@NonNull JedisConnectionFactory jedisFactory) {
+        try (StringRedisConnection redis = new DefaultStringRedisConnection(jedisFactory.getConnection())) {
+            //            long currentTime = System.currentTimeMillis();
+            //            long cutoffTime = currentTime - ipExpiration;
+            //            long removed = redis.zRemRangeByScore(getRedisKey(), 0, cutoffTime);
+            //            if (removed > 0L) { // Did we remove anything?
+            //                log("Purged expired IPs");
+            //            }
         }
     }
     
     /**
-     * Save the storage file for this provider.
+     * Get the key to use when identifying
+     * this provider in Redis.
      *
-     * @see #storageFile for storage file
+     * @return the key
      */
-    public void save() {
-        if (!dirty) { // Not dirty, no need to save
-            return;
-        }
-        try {
-            if (!storageFile.exists()) { // Create the storage file if it doesn't exist
-                File parent = storageFile.getParentFile();
-                if (parent != null && (!parent.exists())) { // Make the parent if it doesn't exist
-                    parent.mkdirs();
-                }
-                storageFile.createNewFile();
-            }
-            JsonObject jsonObject = new JsonObject();
-            
-            // Adding the IPs to the storage
-            JsonObject ipsJsonObject = new JsonObject();
-            for (Map.Entry<String, Long> entry : ips.entrySet()) {
-                ipsJsonObject.addProperty(entry.getKey(), entry.getValue());
-            }
-            jsonObject.add("ips", ipsJsonObject);
-            
-            // Write the json to the storage file
-            try (FileWriter fileWriter = new FileWriter(storageFile)) {
-                fileWriter.write(AntiVPN.GSON.toJson(jsonObject));
-                log("Saved storage file"); // Log that we saved the storage file
-                dirty = false; // Remove the dirty flag
-            }
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
+    @NonNull
+    public final String getRedisKey() {
+        return "providers." + getClass().getSimpleName();
     }
     
     /**

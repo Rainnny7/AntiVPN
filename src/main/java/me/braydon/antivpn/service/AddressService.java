@@ -11,12 +11,17 @@ import com.maxmind.geoip2.record.Location;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.provider.VPNServiceProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -55,48 +60,50 @@ public final class AddressService {
     }
     
     /**
+     * The jedis connection factory.
+     *
+     * @see JedisConnectionFactory for jedis connection factory
+     */
+    @NonNull private final JedisConnectionFactory jedisFactory;
+    
+    /**
+     * Timestamps to keep track of so
+     * we can properly tick the providers.
+     */
+    private long lastIpPurge;
+    
+    @Autowired
+    public AddressService(@NonNull JedisConnectionFactory jedisFactory) {
+        this.jedisFactory = jedisFactory;
+    }
+    
+    /**
      * Initialize this component.
      */
     @PostConstruct
     public void initialize() {
-        // Schedule a task to scrape providers
-        new Timer().schedule(new TimerTask() {
-            @Override
-            public void run() {
+        // Run the main tick task
+        new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted()) {
                 for (VPNServiceProvider provider : VPNServiceProvider.getRegistry()) {
-                    provider.scrape();
+                    // Scrape the provider
+                    provider.scrape(jedisFactory);
+                    
+                    // Purge expired IPs
+                    if ((System.currentTimeMillis() - lastIpPurge) >= TimeUnit.HOURS.toMillis(12L)) {
+                        lastIpPurge = System.currentTimeMillis(); // Update the last ip purge to now
+                        provider.purgeExpiredIps(jedisFactory); // Purge expired IPs
+                    }
+                    
+                    // Default sleep delay
+                    try {
+                        Thread.sleep(2500L);
+                    } catch (InterruptedException ex) {
+                        ex.printStackTrace();
+                    }
                 }
             }
-        }, 2500L, 2500L);
-        
-        // Schedule a task to purge all expired IPs
-        long purgeDelay = TimeUnit.HOURS.toMillis(12L);
-        new Timer().schedule(new TimerTask() {
-            @Override
-            public void run() {
-                for (VPNServiceProvider provider : VPNServiceProvider.getRegistry()) {
-                    provider.purgeExpiredIps();
-                }
-            }
-        }, purgeDelay, purgeDelay);
-        
-        // Schedule a task to save the storage files of all providers
-        new Timer().schedule(new TimerTask() {
-            @Override
-            public void run() {
-                for (VPNServiceProvider provider : VPNServiceProvider.getRegistry()) {
-                    provider.save();
-                }
-            }
-        }, TimeUnit.MINUTES.toMillis(1L), TimeUnit.MINUTES.toMillis(5L));
-        
-        // Add a shutdown hook
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            // Save the storage files of all providers
-            for (VPNServiceProvider provider : VPNServiceProvider.getRegistry()) {
-                provider.save();
-            }
-        }));
+        }, "Tick Task").start();
     }
     
     /**
@@ -165,13 +172,15 @@ public final class AddressService {
         /**
          * Generate data for the given IP address.
          *
-         * @param ip         the ip
-         * @param lookupData the optional types of data to lookup
+         * @param jedisFactory the jedis factory instance
+         * @param ip           the ip
+         * @param lookupData   the optional types of data to lookup
          * @return the generated data
          * @see AddressLookupData the data type
+         * @see JedisConnectionFactory for jedis factory
          */
         @NonNull @SneakyThrows
-        public static AddressData from(@NonNull String ip, Set<AddressService.AddressLookupData> lookupData) {
+        public static AddressData from(@NonNull JedisConnectionFactory jedisFactory, @NonNull String ip, Set<AddressService.AddressLookupData> lookupData) {
             if (!ip.matches(ADDRESS_REGEX)) { // Provided IP is not a valid IPv4 address
                 throw new IllegalArgumentException("Invalid IP address");
             }
@@ -193,7 +202,7 @@ public final class AddressService {
             // Check if the IP belongs to any provider
             riskSuppliers.add(() -> {
                 for (VPNServiceProvider provider : VPNServiceProvider.getRegistry()) {
-                    if (!provider.hasIp(ip)) { // Provider doesn't have this IP
+                    if (!provider.hasIp(jedisFactory, ip)) { // Provider doesn't have this IP
                         continue;
                     }
                     vpnProvider.set(true); // IP belongs to a provider

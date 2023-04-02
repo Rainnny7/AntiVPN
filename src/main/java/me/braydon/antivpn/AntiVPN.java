@@ -15,11 +15,14 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import javax.annotation.PostConstruct;
 import java.io.File;
 import java.net.http.HttpClient;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @SpringBootApplication
 @Slf4j(topic = "AntiVPN")
@@ -30,24 +33,57 @@ public class AntiVPN {
     public static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
                                                      .followRedirects(HttpClient.Redirect.ALWAYS)
                                                      .build(); // The HTTP client to use
+    /**
+     * The thread pool to use for scraping of providers.
+     *
+     * @see ExecutorService for thread pool
+     */
+    public static ExecutorService THREAD_POOL;
+    private static int INDEXED_THREAD_COUNT; // The indexed thread count
     
+    /**
+     * The host to bind to for this application.
+     */
     @Value("${server.address}")
     private String address;
     
+    /**
+     * The port to bind to for this application.
+     */
     @Value("${server.port}")
     private int port;
     
+    /**
+     * The Redis server host.
+     */
     @Value("${spring.data.redis.host}")
     private String redisHost;
     
+    /**
+     * The Redis server port.
+     */
     @Value("${spring.data.redis.port}")
     private int redisPort;
     
+    /**
+     * The Redis database index.
+     */
     @Value("${spring.data.redis.database}")
     private int redisDatabase;
     
+    /**
+     * The optional Redis password.
+     */
     @Value("${spring.data.redis.auth}")
     private String redisAuth;
+    
+    /**
+     * The amount of threads to use for the thread pool.
+     *
+     * @see ExecutorService for thread pool
+     */
+    @Value("${threads}")
+    private int threads;
     
     @SneakyThrows
     public static void main(@NonNull String[] args) {
@@ -60,8 +96,15 @@ public class AntiVPN {
             return;
         }
         log.info("Found configuration at '{}'", config.getAbsolutePath()); // Log the found config
-        
         SpringApplication.run(AntiVPN.class, args); // Load the application
+    }
+    
+    @PostConstruct
+    public void initialize() {
+        // Setup the thread pool
+        THREAD_POOL = Executors.newFixedThreadPool(threads, task -> {
+            return new Thread(task, "AntiVPN #" + (INDEXED_THREAD_COUNT++)); // Create a new thread
+        });
     }
     
     /**

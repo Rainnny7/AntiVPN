@@ -6,7 +6,8 @@ import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
@@ -23,7 +24,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @author Braydon
  */
-@Component
+@Service
 public final class NordService extends VPNServiceProvider {
     private static final String CONFIGS_PAGE = "https://nordvpn.com/ovpn/";
     private static final String DNS_REGEX = "^[^.]+\\.nordvpn\\.com$"; // The DNS server regex pattern
@@ -33,8 +34,9 @@ public final class NordService extends VPNServiceProvider {
      */
     private Set<String> dns;
     
+    @Autowired
     public NordService() {
-        super("NordVPN", TimeUnit.DAYS.toMillis(14L));
+        super("NordVPN", TimeUnit.DAYS.toMillis(7L));
     }
     
     /**
@@ -92,7 +94,7 @@ public final class NordService extends VPNServiceProvider {
                 return;
             }
             for (String dns : this.dns) {
-                VPNServiceProvider.THREAD_POOL.submit(() -> IPUtils.getIpFromDns(dns, ip -> addIp(ip, "DNS Lookup - " + dns)));
+                IPUtils.getIpFromDns(dns, this::addIp);
             }
         }));
     }

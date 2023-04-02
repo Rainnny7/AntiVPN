@@ -7,8 +7,9 @@ import lombok.SneakyThrows;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.provider.VPNServiceProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
@@ -24,7 +25,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @author Braydon
  */
-@Component
+@Service
 public final class PiaService extends VPNServiceProvider {
     private static final String GITHUB_REPO = "Lars-/PIA-servers"; // The GitHub repository to scrape for server IPs
     private static final String GET_SERVERS_ENDPOINT = "https://serverlist.piaservers.net/vpninfo/servers/v6"; // Getting server regions/dns
@@ -53,6 +54,7 @@ public final class PiaService extends VPNServiceProvider {
      */
     @NonNull private final Map<String, String> regions = Collections.synchronizedMap(new HashMap<>());
     
+    @Autowired
     public PiaService() {
         super("Private Internet Access", TimeUnit.DAYS.toMillis(14L));
     }
@@ -91,6 +93,7 @@ public final class PiaService extends VPNServiceProvider {
                     String dns = regionJsonObject.get("dns").getAsString(); // The dns of the region
                     regions.put(id, dns);
                 }
+                
                 // Log the loaded regions
                 log("Found {} regions: {}", regions.size(), String.join(", ", regions.keySet()));
             } catch (IOException | InterruptedException ex) {
@@ -101,7 +104,7 @@ public final class PiaService extends VPNServiceProvider {
         // Add a scrape task to perform a DNS lookup of all A records for all regions
         addScrapeTask(new TimedScrapeTask(TimeUnit.MINUTES.toMillis(2L), () -> {
             for (String dns : regions.values()) {
-                VPNServiceProvider.THREAD_POOL.submit(() -> IPUtils.getIpFromDns(dns, ip -> addIp(ip, "DNS Lookup - " + dns)));
+                IPUtils.getIpFromDns(dns, this::addIp);
             }
         }));
         
@@ -122,8 +125,7 @@ public final class PiaService extends VPNServiceProvider {
                 throw new NullPointerException("Could not get the SHA of the servers directory");
             }
             for (JsonObject treeEntry : getRepositoryTree(TREE_CONTENTS_ENDPOINT + "/" + sha)) {
-                String path = treeEntry.get("path").getAsString(); // The path of the tree
-                addIp(path, "GitHub Repo"); // Add the IP address
+                addIp(treeEntry.get("path").getAsString()); // Add the IP address
             }
         }));
     }

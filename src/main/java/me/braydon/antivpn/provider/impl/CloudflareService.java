@@ -4,7 +4,8 @@ import inet.ipaddr.IPAddress;
 import inet.ipaddr.IPAddressString;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.provider.VPNServiceProvider;
-import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
@@ -20,10 +21,11 @@ import java.util.concurrent.TimeUnit;
  *
  * @author Braydon
  */
-@Component
+@Service
 public final class CloudflareService extends VPNServiceProvider {
     private static final String GET_IPV4_ENDPOINT = "https://www.cloudflare.com/ips-v4"; // Getting IPv4 addresses
     
+    @Autowired
     public CloudflareService() {
         super("Cloudflare", TimeUnit.DAYS.toMillis(7L));
     }
@@ -56,8 +58,7 @@ public final class CloudflareService extends VPNServiceProvider {
                                                                  .withoutPrefixLength()
                                                                  .iterator();
                     while (iterator.hasNext()) {
-                        String ipAddress = iterator.next().toString();
-                        addIp(ipAddress, "IPv4 List"); // Add the IP address
+                        addIp(iterator.next().toString()); // Add the IP address
                     }
                 }
             } catch (IOException | InterruptedException ex) {

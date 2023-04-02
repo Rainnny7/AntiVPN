@@ -9,6 +9,8 @@ import me.braydon.antivpn.common.MemoryFormatter;
 import me.braydon.antivpn.model.APIKey;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import me.braydon.antivpn.service.AddressService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +26,13 @@ import java.util.Set;
 @RequestMapping(value = "/", produces = MediaType.APPLICATION_JSON_VALUE)
 @Slf4j(topic = "Address Controller")
 public class AddressController {
+    @NonNull private final JedisConnectionFactory jedis;
+    
+    @Autowired
+    public AddressController(@NonNull JedisConnectionFactory jedisFactory) {
+        this.jedis = jedisFactory;
+    }
+    
     /**
      * The check route.
      * <p>
@@ -40,7 +49,7 @@ public class AddressController {
             data = new HashSet<>();
         }
         AuthUtils.checkRateLimit(); // Checking for rate limit
-        return ResponseEntity.ok(AddressService.AddressData.from(ip, data));
+        return ResponseEntity.ok(AddressService.AddressData.from(jedis, ip, data));
     }
     
     @PostMapping(value = "/blacklist")
@@ -71,7 +80,7 @@ public class AddressController {
         JsonObject ipsJsonObject = new JsonObject();
         int total = 0;
         for (VPNServiceProvider provider : VPNServiceProvider.getRegistry()) {
-            int ipCount = provider.getIps().size();
+            int ipCount = 2;
             ipsJsonObject.addProperty(provider.getName(), ipCount);
             total += ipCount;
         }
