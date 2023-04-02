@@ -60,16 +60,19 @@ public class WebSecurityConfig {
             if (apiKey == null) { // No API key found
                 throw new BadCredentialsException(String.format("Invalid API key: %s", principal));
             }
-            // Updating the API key
-            apiKey.use(); // API key was used
-            repository.save(apiKey); // Save the API key
-            
             // Log the API key being used
             log.info(String.format("API key '%s' was used (desc=%s, uses=%s)",
                 apiKey.getKey(),
                 apiKey.getDescription(),
                 apiKey.getUses()
             ));
+            // API key is banned
+            if (apiKey.isBanned()) { // API key is banned
+                throw new BadCredentialsException("API key is banned");
+            }
+            // Updating the API key
+            apiKey.use(); // API key was used
+            repository.save(apiKey); // Save the API key
             authentication.setAuthenticated(true); // Mark the session as authenticated
             return authentication;
         });

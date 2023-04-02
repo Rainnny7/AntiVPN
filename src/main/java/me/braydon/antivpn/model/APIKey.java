@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.ToString;
+import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.common.RateLimiter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -21,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 @AllArgsConstructor
 @Getter
 @ToString
+@Slf4j(topic = "API Key")
 public final class APIKey {
     /**
      * The default rate limits to use.
@@ -75,6 +77,11 @@ public final class APIKey {
     @NonNull private final Set<Permission> permissions;
     
     /**
+     * Whether this API key is banned.
+     */
+    private Date banned;
+    
+    /**
      * The amount of uses this API key has.
      */
     public int uses;
@@ -124,7 +131,8 @@ public final class APIKey {
             
             RateLimiter rateLimiter = rateLimiters.get(timeUnit);
             if (rateLimiter == null) { // Create a new limiter if we don't have one
-                rateLimiters.put(timeUnit, new RateLimiter(limit, timeUnit));
+                rateLimiter = new RateLimiter(limit, timeUnit);
+                rateLimiters.put(timeUnit, rateLimiter);
                 modifiedRateLimiters = true;
             } else {
                 if (rateLimiter.getMaxTokens() != limit) { // Updating max tokens for the limiter
@@ -132,9 +140,20 @@ public final class APIKey {
                     modifiedRateLimiters = true;
                 }
             }
+            // Mark the API key as banned
+            if (rateLimiter.isDisabled() && !isBanned()) {
+                banned = new Date(); // Set the banned date
+                rateLimiters.clear(); // Clear the rate limiters to refresh them
+                modifiedRateLimiters = true; // We modified the rate limiters
+                log.info("API key {} was banned for excessively exceeding the rate limit", key); // Log the ban
+            }
         }
         if (modifiedRateLimiters) { // Update the rate limiters if we modified them
-            RATE_LIMITERS.put(key, rateLimiters);
+            if (rateLimiters.isEmpty()) { // Remove the rate limiters if they are empty
+                RATE_LIMITERS.remove(key);
+            } else { // Update the rate limiters
+                RATE_LIMITERS.put(key, rateLimiters);
+            }
         }
         uses++;
         lastUsed = new Date();
@@ -145,13 +164,24 @@ public final class APIKey {
      *
      * @return true if limited, otherwise false
      */
-    public boolean isRateLimited() {
+    public boolean checkRateLimit() {
         for (Map.Entry<TimeUnit, RateLimiter> entry : RATE_LIMITERS.get(key).entrySet()) {
-            if (!entry.getValue().tryAcquire()) { // check if the rate limit has been exceeded for the time unit
-                return true;
+            RateLimiter rateLimiter = entry.getValue();
+            if (rateLimiter.tryAcquire()) { // We can acquire a token for this rate limiter
+                continue;
             }
+            return true; // Rate limit exceeded
         }
         return false;
+    }
+    
+    /**
+     * Check if this API key is banned.
+     *
+     * @return true if banned, otherwise false
+     */
+    public boolean isBanned() {
+        return banned != null;
     }
     
     /**
@@ -168,6 +198,7 @@ public final class APIKey {
             description,
             DEFAULT_RATE_LIMITS,
             Set.of(permissions),
+            null,
             0,
             null,
             new Date()

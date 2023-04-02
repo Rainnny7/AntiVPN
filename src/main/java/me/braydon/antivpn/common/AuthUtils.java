@@ -41,7 +41,7 @@ public final class AuthUtils {
      */
     public static void checkRateLimit() throws RateLimitException {
         APIKey apiKey = getCurrentAPIKey(); // Get the current API key
-        if (apiKey.isRateLimited()) { // The API key is rate limited
+        if (apiKey.checkRateLimit()) { // The API key is rate limited
             throw new RateLimitException();
         }
     }
