@@ -2,7 +2,6 @@
 server:
   address: 0.0.0.0
   port: 7500
-  cors-allowed-origins: vpn.rainnny.club # The CORS allowed origins, separated by commas
 
 # The header to use when identifying API keys
 auth:

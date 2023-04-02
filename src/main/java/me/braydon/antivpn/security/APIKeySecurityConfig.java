@@ -20,9 +20,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import javax.servlet.http.HttpServletRequest;
-import java.util.Arrays;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /**
  * Responsible for requiring authentication using
@@ -36,24 +34,6 @@ import java.util.stream.Stream;
 @Order(1)
 @EnableWebMvc
 public class APIKeySecurityConfig implements WebMvcConfigurer {
-    /**
-     * The host to bind to for this application.
-     */
-    @Value("${server.address}")
-    private String address;
-    
-    /**
-     * The port to bind to for this application.
-     */
-    @Value("${server.port}")
-    private int port;
-    
-    /**
-     * The cors origins to allow.
-     */
-    @Value("${server.cors-allowed-origins}")
-    private String[] corsAllowedOrigins;
-    
     /**
      * The name of the header to
      * use to check for the API key.
@@ -126,15 +106,8 @@ public class APIKeySecurityConfig implements WebMvcConfigurer {
     
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        String[] allowedOrigins = Stream.concat(
-            Stream.of(String.format("^(http|https)://%s:%s", address, port)),
-            Arrays.stream(corsAllowedOrigins)
-        ).toArray(String[]::new);
-        for (String allowedOrigin : allowedOrigins) { // Log the allowed origins
-            log.info("CORS Allowed origin: {}", allowedOrigin);
-        }
         registry.addMapping("/**")
-            .allowedOriginPatterns(allowedOrigins)
+            .allowedOriginPatterns("*")
             .allowedMethods("GET", "POST")
             .allowedHeaders("Content-Type", authHeader);
     }

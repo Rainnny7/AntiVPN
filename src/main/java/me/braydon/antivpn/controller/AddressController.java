@@ -57,7 +57,7 @@ public class AddressController {
      * @return the json response
      * @see AddressService.AddressData#from for more
      */
-    @GetMapping(value = "/check")
+    @GetMapping("/check")
     @ResponseBody
     public ResponseEntity<?> check(@RequestParam @NonNull String ip, @RequestParam(required = false) Set<AddressService.AddressLookupData> data) {
         if (data == null) { // Default the list
@@ -67,7 +67,7 @@ public class AddressController {
         return ResponseEntity.ok(AddressService.AddressData.from(jedisFactory, addressCacheRepository, ip, data));
     }
     
-    @PostMapping(value = "/blacklist")
+    @PostMapping("/blacklist")
     @ResponseBody
     public ResponseEntity<?> blacklist(@RequestParam @NonNull String ip, @RequestParam @NonNull AddressService.BlacklistType type) {
         AuthUtils.validatePermissions(APIKey.Permission.BLACKLIST_MODIFY); // Validate permissions
@@ -79,7 +79,7 @@ public class AddressController {
      *
      * @return the json response
      */
-    @GetMapping(value = "/stats")
+    @GetMapping("/stats")
     @ResponseBody
     public ResponseEntity<?> check() {
         AuthUtils.validatePermissions(APIKey.Permission.VIEW_STATS); // Validate permissions
