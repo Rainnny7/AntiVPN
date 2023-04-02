@@ -223,6 +223,7 @@ public final class AddressService {
             }
             if (matchesDomain) { // Extract the IP from the domain
                 rawIp = InetAddress.getByName(rawIp).getHostAddress();
+                log.info("Extracted IP from domain: {}", rawIp); // Log the extracted IP
             }
             String ip = rawIp; // The IP to lookup
             
