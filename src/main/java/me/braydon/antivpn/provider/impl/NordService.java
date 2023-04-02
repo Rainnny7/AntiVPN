@@ -1,6 +1,5 @@
 package me.braydon.antivpn.provider.impl;
 
-import lombok.NonNull;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.provider.VPNServiceProvider;
@@ -32,7 +31,7 @@ public final class NordService extends VPNServiceProvider {
     /**
      * The DNS servers of this provider.
      */
-    @NonNull private Set<String> dns = new HashSet<>();
+    private Set<String> dns;
     
     public NordService() {
         super("NordVPN", TimeUnit.DAYS.toMillis(14L));
@@ -75,10 +74,13 @@ public final class NordService extends VPNServiceProvider {
                         dns.add(text); // Add the DNS server
                     }
                 }
-                this.dns = dns; // Update the DNS actual list
+                this.dns = new HashSet<>(dns); // Update the DNS actual list
+                
+                // Memory cleanup
+                dns.clear();
                 
                 // Log the DNS servers
-                log("Found {} DNS servers", dns.size());
+                log("Found {} DNS servers", this.dns.size());
             } catch (IOException | InterruptedException ex) {
                 ex.printStackTrace();
             }
@@ -86,6 +88,9 @@ public final class NordService extends VPNServiceProvider {
         
         // Add a scrape task to perform a DNS lookup of all A records for DNS servers
         addScrapeTask(new TimedScrapeTask(TimeUnit.MINUTES.toMillis(2L), () -> {
+            if (dns == null) { // No DNS servers available yet
+                return;
+            }
             for (String dns : this.dns) {
                 VPNServiceProvider.THREAD_POOL.submit(() -> IPUtils.getIpFromDns(dns, ip -> addIp(ip, "DNS Lookup - " + dns)));
             }
