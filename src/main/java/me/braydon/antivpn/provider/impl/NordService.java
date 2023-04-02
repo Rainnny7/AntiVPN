@@ -3,6 +3,7 @@ package me.braydon.antivpn.provider.impl;
 import lombok.NonNull;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.IPUtils;
+import me.braydon.antivpn.common.StringUtils;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -78,7 +79,7 @@ public final class NordService extends VPNServiceProvider {
                 this.dns = dns; // Update the DNS actual list
                 
                 // Log the DNS servers
-                log("Found {} DNS servers", dns.size());
+                log("Found {} DNS servers", StringUtils.formatNumber(dns.size()));
             } catch (IOException | InterruptedException ex) {
                 ex.printStackTrace();
             }

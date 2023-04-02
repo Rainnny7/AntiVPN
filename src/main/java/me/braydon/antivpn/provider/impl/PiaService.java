@@ -6,6 +6,7 @@ import lombok.NonNull;
 import lombok.SneakyThrows;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.IPUtils;
+import me.braydon.antivpn.common.StringUtils;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -93,7 +94,7 @@ public final class PiaService extends VPNServiceProvider {
                 }
                 
                 // Log the loaded regions
-                log("Found {} regions: {}", regions.size(), String.join(", ", regions.keySet()));
+                log("Found {} regions: {}", StringUtils.formatNumber(regions.size()), String.join(", ", regions.keySet()));
             } catch (IOException | InterruptedException ex) {
                 ex.printStackTrace();
             }

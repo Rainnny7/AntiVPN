@@ -3,6 +3,7 @@ package me.braydon.antivpn.provider;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import me.braydon.antivpn.common.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.slf4j.SLF4JLogger;
 import org.springframework.data.redis.connection.DefaultStringRedisConnection;
@@ -127,7 +128,10 @@ public abstract class VPNServiceProvider {
                 .map(key -> key.substring(redisKey.length())) // Extract the IP address
                 .forEach(ips::add); // Add the IP address to the set
         }
-        log("Retrieved {} IPs from the database in {}ms", ips.size(), System.currentTimeMillis() - before); // Log timings
+        log("Retrieved {} IPs from the database in {}ms",
+            StringUtils.formatNumber(ips.size()),
+            System.currentTimeMillis() - before
+        ); // Log timings
         return ips;
     }
     
@@ -151,7 +155,7 @@ public abstract class VPNServiceProvider {
             }
         }
         if (!scrapedIps.isEmpty()) { // Insert the scraped IPs into the database if we have any
-            log("Adding {} scraped IPs to the database...", scrapedIps.size());
+            log("Adding {} scraped IPs to the database...", StringUtils.formatNumber(scrapedIps.size()));
             
             String redisKey = getRedisKey() + ":"; // The redis key
             String now = String.valueOf(System.currentTimeMillis()); // The current timestamp
@@ -163,7 +167,7 @@ public abstract class VPNServiceProvider {
                 int inserted = redis.closePipeline().size(); // Close the pipeline which then returns the results
                 
                 // Log the IPs being added
-                log("Successfully inserted {} IPs into the database", inserted);
+                log("Successfully inserted {} IPs into the database", StringUtils.formatNumber(inserted));
             }
             scrapedIps.clear(); // Clear the scraped IPs after we've inserted them
         }
