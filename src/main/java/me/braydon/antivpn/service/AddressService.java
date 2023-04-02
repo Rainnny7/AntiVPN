@@ -84,9 +84,15 @@ public final class AddressService {
     public void initialize() {
         // Run the main tick task for addresses
         new Thread(() -> {
+            long lastLog = 0L; // The last time we logged
             while (!Thread.currentThread().isInterrupted()) {
+                boolean canLog = (System.currentTimeMillis() - lastLog) >= TimeUnit.SECONDS.toMillis(10L); // Check if we can log
+                lastLog = System.currentTimeMillis(); // Update the last log to now
+                
                 Set<VPNServiceProvider> providers = VPNServiceProvider.getRegistry();
-                log.info("Ticking {} providers...", providers.size());
+                if (canLog) { // Log that we're ticking providers
+                    log.info("Ticking {} providers...", providers.size());
+                }
                 for (VPNServiceProvider provider : providers) {
                     // Scrape the provider
                     provider.scrape(jedisFactory);
@@ -97,7 +103,9 @@ public final class AddressService {
                         provider.purgeExpiredIps(jedisFactory); // Purge expired IPs
                     }
                 }
-                log.info("Running GC..."); // Log the GC
+                if (canLog) { // Log the GC
+                    log.info("Running GC...");
+                }
                 System.gc(); // Run the garbage collector after ticking the providers
                 
                 // Default sleep delay

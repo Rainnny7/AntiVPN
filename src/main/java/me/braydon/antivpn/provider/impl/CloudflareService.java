@@ -12,7 +12,7 @@ import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.Iterator;
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -38,7 +38,7 @@ public final class CloudflareService extends VPNServiceProvider {
     @PostConstruct
     public void initialize() {
         // Add a scrape task to get all provider ips
-        addScrapeTask(new TimedScrapeTask(TimeUnit.DAYS.toMillis(1L), () -> {
+        addScrapeTask(new TimedScrapeTask("Fetch IPv4 List", TimeUnit.DAYS.toMillis(1L), () -> {
             try {
                 HttpRequest request = HttpRequest.newBuilder()
                                           .uri(URI.create(GET_IPV4_ENDPOINT))
@@ -50,15 +50,14 @@ public final class CloudflareService extends VPNServiceProvider {
                     throw new IllegalStateException(String.format("Bad status code (%s) returned", response.statusCode()));
                 }
                 String body = response.body(); // The body of the response
-                for (String range : body.split("\n")) { // Iterate over the returned ranges
-                    Iterator<? extends IPAddress> iterator = new IPAddressString(range).getAddress()
-                                                                 .toPrefixBlock()
-                                                                 .withoutPrefixLength()
-                                                                 .iterator();
-                    while (iterator.hasNext()) {
-                        addIp(iterator.next().toString()); // Add the IP address
-                    }
-                }
+                Arrays.stream(body.split("\n")) // Stream over the returned ranges
+                    .parallel() // Process in parallel
+                    .flatMap(range -> new IPAddressString(range).getAddress() // Get the IP address range
+                                          .toPrefixBlock() // Convert the range to a prefix block
+                                          .withoutPrefixLength() // Remove the prefix length
+                                          .stream()) // Stream over the IP addresses in the range
+                    .map(IPAddress::toString) // Convert the IP addresses to strings
+                    .forEach(this::addIp); // Add the IP address
             } catch (IOException | InterruptedException ex) {
                 ex.printStackTrace();
             }

@@ -67,7 +67,7 @@ public final class PiaService extends VPNServiceProvider {
     @PostConstruct @SneakyThrows
     public void initialize() {
         // Add a scrape task to get all server regions
-        addScrapeTask(new TimedScrapeTask(TimeUnit.MINUTES.toMillis(10L), () -> {
+        addScrapeTask(new TimedScrapeTask("Fetch Regions", TimeUnit.MINUTES.toMillis(10L), () -> {
             try {
                 HttpRequest request = HttpRequest.newBuilder()
                                           .uri(URI.create(GET_SERVERS_ENDPOINT))
@@ -100,15 +100,17 @@ public final class PiaService extends VPNServiceProvider {
         }));
         
         // Add a scrape task to perform a DNS lookup of all A records for all regions
-        addScrapeTask(new TimedScrapeTask(TimeUnit.MINUTES.toMillis(2L), () -> {
-            for (String dns : regions.values()) {
-                IPUtils.getIpFromDns(dns, this::addIp);
+        addScrapeTask(new TimedScrapeTask("DNS Lookup", TimeUnit.MINUTES.toMillis(2L), () -> {
+            if (regions.isEmpty()) { // No DNS servers found
+                log("No regions found, skipping DNS lookup");
+                return;
             }
+            regions.values().parallelStream().forEach(dns -> IPUtils.getIpFromDns(dns, this::addIp)); // Add the IP to the list
         }));
         
         // Add a scrape task to add all IPs found from the GitHub
         // repository that contains a list of IPs for this provider
-        addScrapeTask(new TimedScrapeTask(TimeUnit.DAYS.toMillis(1L), () -> {
+        addScrapeTask(new TimedScrapeTask("Fetch GH Repo", TimeUnit.DAYS.toMillis(1L), () -> {
             // Send a request to get the tree list
             String sha = null; // The sha of the directory that contains the server ips
             for (JsonObject treeEntry : getRepositoryTree(MASTER_TREES_ENDPOINT)) {

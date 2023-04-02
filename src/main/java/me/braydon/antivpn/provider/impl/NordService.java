@@ -48,7 +48,7 @@ public final class NordService extends VPNServiceProvider {
     @PostConstruct
     public void initialize() {
         // Add a scrape task to get all dns servers
-        addScrapeTask(new TimedScrapeTask(TimeUnit.HOURS.toMillis(1L), () -> {
+        addScrapeTask(new TimedScrapeTask("Fetch DNS Servers", TimeUnit.HOURS.toMillis(3L), () -> {
             try {
                 HttpRequest request = HttpRequest.newBuilder()
                                           .uri(URI.create(CONFIGS_PAGE))
@@ -85,10 +85,12 @@ public final class NordService extends VPNServiceProvider {
         }));
         
         // Add a scrape task to perform a DNS lookup of all A records for DNS servers
-        addScrapeTask(new TimedScrapeTask(TimeUnit.MINUTES.toMillis(2L), () -> {
-            for (String dns : this.dns) {
-                IPUtils.getIpFromDns(dns, this::addIp);
+        addScrapeTask(new TimedScrapeTask("DNS Lookup", TimeUnit.MINUTES.toMillis(2L), () -> {
+            if (dns.isEmpty()) { // No DNS servers found
+                log("No DNS servers found, skipping DNS lookup");
+                return;
             }
+            dns.parallelStream().forEach(dns -> IPUtils.getIpFromDns(dns, this::addIp)); // Add the IP to the list
         }));
     }
 }

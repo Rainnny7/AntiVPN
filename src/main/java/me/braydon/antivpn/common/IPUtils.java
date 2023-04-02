@@ -24,7 +24,8 @@ public final class IPUtils {
     public static void getIpFromDns(@NonNull String dns, @NonNull Consumer<String> callback) {
         Record[] records;
         try {
-            records = new Lookup(dns, Type.A).run();
+            Lookup lookup = new Lookup(dns, Type.A);
+            records = lookup.run();
             if (records == null) { // Error when retrieving DNS records
                 throw new NullPointerException(String.format("Could not retrieve DNS records for '%s'", dns));
             }
@@ -33,7 +34,7 @@ public final class IPUtils {
                 callback.accept(value); // Run the callback
             }
         } catch (TextParseException ex) {
-            throw new RuntimeException(ex);
+            ex.printStackTrace();
         }
     }
 }

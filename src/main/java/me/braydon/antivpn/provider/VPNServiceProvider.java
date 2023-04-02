@@ -3,7 +3,6 @@ package me.braydon.antivpn.provider;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import me.braydon.antivpn.AntiVPN;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.slf4j.SLF4JLogger;
 import org.springframework.data.redis.connection.DefaultStringRedisConnection;
@@ -13,10 +12,6 @@ import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.data.redis.core.types.Expiration;
 
 import java.util.*;
-import java.util.concurrent.CompletionService;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorCompletionService;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -102,11 +97,16 @@ public abstract class VPNServiceProvider {
      */
     public final boolean hasIp(@NonNull JedisConnectionFactory jedisFactory, @NonNull String ip) {
         long before = System.currentTimeMillis();
-        try (StringRedisConnection redis = new DefaultStringRedisConnection(jedisFactory.getConnection())) {
-            boolean exists = redis.exists(getRedisKey() + ":" + ip); // Does the IP exist for this provider?
-            log("Checked if the IP {} exists in the database in {}ms", ip, System.currentTimeMillis() - before); // Log timings
-            return exists;
+        boolean exists;
+        if (scrapedIps.contains(ip)) { // Check the local cache first
+            exists = true;
+        } else {
+            try (StringRedisConnection redis = new DefaultStringRedisConnection(jedisFactory.getConnection())) {
+                exists = redis.exists(getRedisKey() + ":" + ip); // Does the IP exist for this provider?
+            }
         }
+        log("Checked if the IP {} exists in the database in {}ms", ip, System.currentTimeMillis() - before); // Log timings
+        return exists;
     }
     
     /**
@@ -137,30 +137,17 @@ public abstract class VPNServiceProvider {
      * @see ScrapeTask for scrape task
      */
     public final void scrape(@NonNull JedisConnectionFactory jedisFactory) {
-        int totalScrapeTasks = scrapeTasks.size();
-        AtomicInteger completed = new AtomicInteger();
-        CompletionService<Void> completionService = new ExecutorCompletionService<>(AntiVPN.THREAD_POOL);
-        
         for (ScrapeTask scrapeTask : scrapeTasks) {
             if (!scrapeTask.canRun()) { // Can't run
+                //                log("Skipping task {}...", scrapeTask.getName()); // Log that we skipped the task
                 continue;
             }
-            completionService.submit(() -> {
-                try {
-                    scrapeTask.run(); // Run the task
-                    completed.addAndGet(1); // Completed a task
-                } catch (Exception ex) {
-                    log(Level.ERROR, "An error occurred while scraping the provider", ex);
-                }
-                return null;
-            });
-        }
-        
-        for (int i = 0; i < totalScrapeTasks; i++) {
             try {
-                completionService.take().get();
-            } catch (InterruptedException | ExecutionException ex) {
-                log(Level.ERROR, "An error occurred while waiting for scrape tasks to complete", ex);
+                log("Running task {}...", scrapeTask.getName()); // Log that we're running the task
+                scrapeTask.run(); // Run the task
+                log("Completed task {}!", scrapeTask.getName()); // Log that we completed the task
+            } catch (Exception ex) {
+                log(Level.ERROR, "An error occurred while scraping the provider", ex);
             }
         }
         if (!scrapedIps.isEmpty()) { // Insert the scraped IPs into the database if we have any
@@ -178,6 +165,7 @@ public abstract class VPNServiceProvider {
                 // Log the IPs being added
                 log("Successfully inserted {} IPs into the database", inserted);
             }
+            scrapedIps.clear(); // Clear the scraped IPs after we've inserted them
         }
     }
     
@@ -212,14 +200,7 @@ public abstract class VPNServiceProvider {
      * @see StringRedisConnection for jedis factory
      */
     public final void purgeExpiredIps(@NonNull JedisConnectionFactory jedisFactory) {
-        try (StringRedisConnection redis = new DefaultStringRedisConnection(jedisFactory.getConnection())) {
-            //            long currentTime = System.currentTimeMillis();
-            //            long cutoffTime = currentTime - ipExpiration;
-            //            long removed = redis.zRemRangeByScore(getRedisKey(), 0, cutoffTime);
-            //            if (removed > 0L) { // Did we remove anything?
-            //                log("Purged expired IPs");
-            //            }
-        }
+        // TODO: purge expired IPs
     }
     
     /**
@@ -270,8 +251,8 @@ public abstract class VPNServiceProvider {
          */
         private long lastRun;
         
-        public TimedScrapeTask(long delay, @NonNull Runnable task) {
-            super(() -> true, task);
+        public TimedScrapeTask(@NonNull String name, long delay, @NonNull Runnable task) {
+            super(name, () -> true, task);
             this.delay = delay;
         }
         
@@ -300,6 +281,11 @@ public abstract class VPNServiceProvider {
      */
     @RequiredArgsConstructor
     public static class ScrapeTask {
+        /**
+         * The name of this task.
+         */
+        @NonNull @Getter private final String name;
+        
         /**
          * The supplier to use when checking
          * if this task can be executed.
