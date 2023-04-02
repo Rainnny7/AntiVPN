@@ -82,10 +82,12 @@ public final class AddressService {
      */
     @PostConstruct
     public void initialize() {
-        // Run the main tick task
+        // Run the main tick task for addresses
         new Thread(() -> {
             while (!Thread.currentThread().isInterrupted()) {
-                for (VPNServiceProvider provider : VPNServiceProvider.getRegistry()) {
+                Set<VPNServiceProvider> providers = VPNServiceProvider.getRegistry();
+                log.info("Ticking {} providers...", providers.size());
+                for (VPNServiceProvider provider : providers) {
                     // Scrape the provider
                     provider.scrape(jedisFactory);
                     
@@ -94,16 +96,18 @@ public final class AddressService {
                         lastIpPurge = System.currentTimeMillis(); // Update the last ip purge to now
                         provider.purgeExpiredIps(jedisFactory); // Purge expired IPs
                     }
-                    
-                    // Default sleep delay
-                    try {
-                        Thread.sleep(2500L);
-                    } catch (InterruptedException ex) {
-                        ex.printStackTrace();
-                    }
+                }
+                log.info("Running GC..."); // Log the GC
+                System.gc(); // Run the garbage collector after ticking the providers
+                
+                // Default sleep delay
+                try {
+                    Thread.sleep(2500L);
+                } catch (InterruptedException ex) {
+                    ex.printStackTrace();
                 }
             }
-        }, "Tick Task").start();
+        }, "Primary Address Thread").start();
     }
     
     /**

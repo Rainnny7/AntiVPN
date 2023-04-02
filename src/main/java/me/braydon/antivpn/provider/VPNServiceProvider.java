@@ -7,13 +7,15 @@ import me.braydon.antivpn.AntiVPN;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.slf4j.SLF4JLogger;
 import org.springframework.data.redis.connection.DefaultStringRedisConnection;
+import org.springframework.data.redis.connection.RedisStringCommands;
 import org.springframework.data.redis.connection.StringRedisConnection;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
+import org.springframework.data.redis.core.types.Expiration;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
@@ -62,7 +64,7 @@ public abstract class VPNServiceProvider {
      * just add them in bulk.
      * </p>
      */
-    @NonNull private final Set<String> scrapedIps = Collections.synchronizedSet(new HashSet<>());
+    @NonNull private final Set<String> scrapedIps = Collections.synchronizedSet(new TreeSet<>());
     
     public VPNServiceProvider(@NonNull String name, long ipExpiration) {
         this.name = name;
@@ -117,7 +119,7 @@ public abstract class VPNServiceProvider {
     @NonNull
     public final Set<String> getIps(@NonNull JedisConnectionFactory jedisFactory) {
         long before = System.currentTimeMillis();
-        Set<String> ips = new HashSet<>();
+        Set<String> ips = new TreeSet<>();
         try (StringRedisConnection redis = new DefaultStringRedisConnection(jedisFactory.getConnection())) {
             String redisKey = getRedisKey();
             for (String key : redis.keys(redisKey + ":*")) {
@@ -136,27 +138,28 @@ public abstract class VPNServiceProvider {
     public final void scrape(@NonNull JedisConnectionFactory jedisFactory) {
         int totalScrapeTasks = scrapeTasks.size();
         AtomicInteger completed = new AtomicInteger();
+        CompletionService<Void> completionService = new ExecutorCompletionService<>(AntiVPN.THREAD_POOL);
+        
         for (ScrapeTask scrapeTask : scrapeTasks) {
             if (!scrapeTask.canRun()) { // Can't run
                 continue;
             }
-            AntiVPN.THREAD_POOL.submit(() -> {
+            completionService.submit(() -> {
                 try {
                     scrapeTask.run(); // Run the task
                     completed.addAndGet(1); // Completed a task
                 } catch (Exception ex) {
                     log(Level.ERROR, "An error occurred while scraping the provider", ex);
                 }
+                return null;
             });
         }
-        // Wait for all scrape tasks to complete. This is done so
-        // we can add the scraped IPs in bulk instead of adding them
-        // one by one which would flood the database with queries
-        while (completed.get() < totalScrapeTasks) {
+        
+        for (int i = 0; i < totalScrapeTasks; i++) {
             try {
-                Thread.sleep(100L);
-            } catch (InterruptedException ex) {
-                ex.printStackTrace();
+                completionService.take().get();
+            } catch (InterruptedException | ExecutionException ex) {
+                log(Level.ERROR, "An error occurred while waiting for scrape tasks to complete", ex);
             }
         }
         if (!scrapedIps.isEmpty()) { // Insert the scraped IPs into the database if we have any
@@ -167,7 +170,7 @@ public abstract class VPNServiceProvider {
             try (StringRedisConnection redis = new DefaultStringRedisConnection(jedisFactory.getConnection())) {
                 redis.openPipeline(); // Open a pipeline
                 for (String scrapedIp : scrapedIps) { // Add the IPs to the database
-                    redis.set(redisKey + scrapedIp, now);
+                    redis.set(redisKey + scrapedIp, now, Expiration.persistent(), RedisStringCommands.SetOption.ifAbsent());
                 }
                 int inserted = redis.closePipeline().size(); // Close the pipeline which then returns the results
                 
