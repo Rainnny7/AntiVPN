@@ -4,7 +4,6 @@ import inet.ipaddr.IPAddress;
 import inet.ipaddr.IPAddressString;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.provider.VPNServiceProvider;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -25,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 public final class CloudflareService extends VPNServiceProvider {
     private static final String GET_IPV4_ENDPOINT = "https://www.cloudflare.com/ips-v4"; // Getting IPv4 addresses
     
-    @Autowired
     public CloudflareService() {
         super("Cloudflare", TimeUnit.DAYS.toMillis(7L));
     }

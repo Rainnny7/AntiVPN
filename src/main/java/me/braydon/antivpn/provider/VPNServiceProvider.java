@@ -119,12 +119,13 @@ public abstract class VPNServiceProvider {
     @NonNull
     public final Set<String> getIps(@NonNull JedisConnectionFactory jedisFactory) {
         long before = System.currentTimeMillis();
-        Set<String> ips = new TreeSet<>();
+        Set<String> ips = new HashSet<>();
+        String redisKey = getRedisKey() + ":";
         try (StringRedisConnection redis = new DefaultStringRedisConnection(jedisFactory.getConnection())) {
-            String redisKey = getRedisKey();
-            for (String key : redis.keys(redisKey + ":*")) {
-                ips.add(key.substring(redisKey.length() + 1));
-            }
+            redis.keys(redisKey + "*")
+                .parallelStream()
+                .map(key -> key.substring(redisKey.length())) // Extract the IP address
+                .forEach(ips::add); // Add the IP address to the set
         }
         log("Retrieved {} IPs from the database in {}ms", ips.size(), System.currentTimeMillis() - before); // Log timings
         return ips;
@@ -230,6 +231,29 @@ public abstract class VPNServiceProvider {
     @NonNull
     public final String getRedisKey() {
         return "providers." + getClass().getSimpleName();
+    }
+    
+    /**
+     * Get the provider IP counts.
+     *
+     * @param jedisFactory the jedis factory instance
+     * @return the provider IP counts
+     * @see StringRedisConnection for jedis factory
+     */
+    @NonNull
+    public static Map<String, Integer> getProviderIpCounts(@NonNull JedisConnectionFactory jedisFactory) {
+        Map<String, Integer> mappedProviderIps = new HashMap<>();
+        try (StringRedisConnection redis = new DefaultStringRedisConnection(jedisFactory.getConnection())) {
+            redis.keys("providers.*") // Get all provider IP addresses
+                .parallelStream()
+                .forEach(key -> {
+                    String[] split = key.split(":");
+                    String provider = split[0].split("\\.")[1];// The provider name
+                    mappedProviderIps.put(provider,
+                        mappedProviderIps.getOrDefault(provider, 0) + 1); // Increment the provider IP count
+                });
+        }
+        return mappedProviderIps;
     }
     
     /**

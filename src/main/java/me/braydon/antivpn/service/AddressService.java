@@ -205,20 +205,24 @@ public final class AddressService {
             
             // Check if the IP belongs to any provider
             riskSuppliers.add(() -> {
+                long before = System.currentTimeMillis(); // The time before the lookup
+                float providerRisk = 0.0f; // The risk score for the provider
                 for (VPNServiceProvider provider : VPNServiceProvider.getRegistry()) {
                     if (!provider.hasIp(jedisFactory, ip)) { // Provider doesn't have this IP
                         continue;
                     }
                     vpnProvider.set(true); // IP belongs to a provider
-                    return 0.6f;
+                    providerRisk += 0.6;
                 }
-                return 0f;
+                log.info("VPN provider lookup complete in {}ms", System.currentTimeMillis() - before); // Log timings
+                return providerRisk;
             });
             
             // Looking up the ASN of the IP if specified in the lookup data
             if (lookupAsn) {
                 log.info("Looking up ASN of IP: {}", ip); // Log the ASN lookup
                 riskSuppliers.add(() -> {
+                    long before = System.currentTimeMillis(); // The time before the lookup
                     AtomicReference<Float> asnRisk = new AtomicReference<>();
                     MaxmindService.getInstance().submitTask(databaseReader -> {
                         try {
@@ -236,6 +240,7 @@ public final class AddressService {
                                 blacklisted.add(BlacklistType.ASN);
                                 asnRisk.set(0.4f);
                             }
+                            log.info("ASN data lookup complete in {}ms", System.currentTimeMillis() - before); // Log timings
                         } catch (IOException | GeoIp2Exception ex) {
                             ex.printStackTrace();
                         }
@@ -248,6 +253,7 @@ public final class AddressService {
             if (lookupGeographical) {
                 log.info("Looking up geographical data of IP: {}", ip); // Log the geo lookup
                 riskSuppliers.add(() -> {
+                    long before = System.currentTimeMillis(); // The time before the lookup
                     AtomicReference<Float> countryRisk = new AtomicReference<>();
                     MaxmindService.getInstance().submitTask(databaseReader -> {
                         try {
@@ -275,6 +281,7 @@ public final class AddressService {
                                 blacklisted.add(BlacklistType.COUNTRY);
                                 countryRisk.set(0.4f);
                             }
+                            log.info("Geographical data lookup complete in {}ms", System.currentTimeMillis() - before); // Log timings
                         } catch (IOException | GeoIp2Exception ex) {
                             ex.printStackTrace();
                         }
@@ -284,6 +291,7 @@ public final class AddressService {
             }
             
             // Calculating the risk
+            long before = System.currentTimeMillis();
             for (Supplier<Float> supplier : riskSuppliers) {
                 Float value = supplier.get();
                 if (value == null || (value.isNaN() || value.isInfinite())) {
@@ -292,6 +300,7 @@ public final class AddressService {
                 risk += value;
             }
             risk = Math.min(risk, 1.0f); // Limit the risk to 1.0
+            log.info("Risk calculation complete in {}ms", System.currentTimeMillis() - before); // Log timings
             
             // Return the address data
             return new AddressData(

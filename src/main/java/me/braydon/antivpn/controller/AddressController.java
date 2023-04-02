@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.lang.management.ManagementFactory;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -26,11 +27,11 @@ import java.util.Set;
 @RequestMapping(value = "/", produces = MediaType.APPLICATION_JSON_VALUE)
 @Slf4j(topic = "Address Controller")
 public class AddressController {
-    @NonNull private final JedisConnectionFactory jedis;
+    @NonNull private final JedisConnectionFactory jedisFactory;
     
     @Autowired
     public AddressController(@NonNull JedisConnectionFactory jedisFactory) {
-        this.jedis = jedisFactory;
+        this.jedisFactory = jedisFactory;
     }
     
     /**
@@ -49,7 +50,7 @@ public class AddressController {
             data = new HashSet<>();
         }
         AuthUtils.checkRateLimit(); // Checking for rate limit
-        return ResponseEntity.ok(AddressService.AddressData.from(jedis, ip, data));
+        return ResponseEntity.ok(AddressService.AddressData.from(jedisFactory, ip, data));
     }
     
     @PostMapping(value = "/blacklist")
@@ -79,9 +80,9 @@ public class AddressController {
         // Stat to show IPs per provider
         JsonObject ipsJsonObject = new JsonObject();
         int total = 0;
-        for (VPNServiceProvider provider : VPNServiceProvider.getRegistry()) {
-            int ipCount = 2;
-            ipsJsonObject.addProperty(provider.getName(), ipCount);
+        for (Map.Entry<String, Integer> entry : VPNServiceProvider.getProviderIpCounts(jedisFactory).entrySet()) {
+            int ipCount = entry.getValue();
+            ipsJsonObject.addProperty(entry.getKey(), ipCount);
             total += ipCount;
         }
         ipsJsonObject.addProperty("total", total); // Adding the total ip count

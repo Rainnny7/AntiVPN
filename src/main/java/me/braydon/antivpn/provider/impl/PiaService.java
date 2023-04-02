@@ -7,7 +7,6 @@ import lombok.SneakyThrows;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.provider.VPNServiceProvider;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -54,7 +53,6 @@ public final class PiaService extends VPNServiceProvider {
      */
     @NonNull private final Map<String, String> regions = Collections.synchronizedMap(new HashMap<>());
     
-    @Autowired
     public PiaService() {
         super("Private Internet Access", TimeUnit.DAYS.toMillis(14L));
     }

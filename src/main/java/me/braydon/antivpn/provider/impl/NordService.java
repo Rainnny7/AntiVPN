@@ -1,12 +1,12 @@
 package me.braydon.antivpn.provider.impl;
 
+import lombok.NonNull;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -32,9 +32,8 @@ public final class NordService extends VPNServiceProvider {
     /**
      * The DNS servers of this provider.
      */
-    private Set<String> dns;
+    @NonNull private Set<String> dns = new HashSet<>();
     
-    @Autowired
     public NordService() {
         super("NordVPN", TimeUnit.DAYS.toMillis(7L));
     }
@@ -76,13 +75,10 @@ public final class NordService extends VPNServiceProvider {
                         dns.add(text); // Add the DNS server
                     }
                 }
-                this.dns = new HashSet<>(dns); // Update the DNS actual list
-                
-                // Memory cleanup
-                dns.clear();
+                this.dns = dns; // Update the DNS actual list
                 
                 // Log the DNS servers
-                log("Found {} DNS servers", this.dns.size());
+                log("Found {} DNS servers", dns.size());
             } catch (IOException | InterruptedException ex) {
                 ex.printStackTrace();
             }
@@ -90,9 +86,6 @@ public final class NordService extends VPNServiceProvider {
         
         // Add a scrape task to perform a DNS lookup of all A records for DNS servers
         addScrapeTask(new TimedScrapeTask(TimeUnit.MINUTES.toMillis(2L), () -> {
-            if (dns == null) { // No DNS servers available yet
-                return;
-            }
             for (String dns : this.dns) {
                 IPUtils.getIpFromDns(dns, this::addIp);
             }
