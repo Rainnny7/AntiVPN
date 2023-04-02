@@ -38,7 +38,7 @@ public final class AddressService {
     /**
      * The regex expression for validating IPv4 addresses.
      */
-    private static final String ADDRESS_REGEX = "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$";
+    public static final String ADDRESS_REGEX = "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$";
     
     /**
      * The regex expression for validating domains.

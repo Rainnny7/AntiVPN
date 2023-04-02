@@ -8,7 +8,9 @@ import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.common.StringUtils;
 import me.braydon.antivpn.provider.VPNServiceProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -54,8 +56,17 @@ public final class PiaService extends VPNServiceProvider {
      */
     @NonNull private final Map<String, String> regions = Collections.synchronizedMap(new HashMap<>());
     
-    public PiaService() {
+    /**
+     * The jedis connection factory.
+     *
+     * @see JedisConnectionFactory for jedis connection factory
+     */
+    @NonNull private final JedisConnectionFactory jedisFactory;
+    
+    @Autowired
+    public PiaService(@NonNull JedisConnectionFactory jedisFactory) {
         super("Private Internet Access", TimeUnit.DAYS.toMillis(14L));
+        this.jedisFactory = jedisFactory;
     }
     
     /**
@@ -109,7 +120,7 @@ public final class PiaService extends VPNServiceProvider {
             // Add the IP to the list
             regions.values().parallelStream().forEach(dns -> {
                 try {
-                    IPUtils.getIpFromDns(dns, this::addIp);
+                    IPUtils.getIpFromDns(dns, ip -> addIp(jedisFactory, ip));
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 }
@@ -133,7 +144,7 @@ public final class PiaService extends VPNServiceProvider {
                 throw new NullPointerException("Could not get the SHA of the servers directory");
             }
             for (JsonObject treeEntry : getRepositoryTree(TREE_CONTENTS_ENDPOINT + "/" + sha)) {
-                addIp(treeEntry.get("path").getAsString()); // Add the IP address
+                addIp(jedisFactory, treeEntry.get("path").getAsString()); // Add the IP address
             }
         }));
     }

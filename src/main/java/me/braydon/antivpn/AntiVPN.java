@@ -83,6 +83,9 @@ public class AntiVPN {
         }
         log.info("Found configuration at '{}'", config.getAbsolutePath()); // Log the found config
         SpringApplication.run(AntiVPN.class, args); // Load the application
+        
+        
+        // TODO: add banning of api keys
     }
     
     @PostConstruct

@@ -82,10 +82,14 @@ public abstract class VPNServiceProvider {
     /**
      * Add the given IP to this provider.
      *
-     * @param ip the ip to add
+     * @param jedisFactory the jedis factory instance
+     * @param ip           the ip to add
+     * @see JedisConnectionFactory for jedis factory
      */
-    public final void addIp(@NonNull String ip) {
-        scrapedIps.add(ip); // Add the IP
+    public final void addIp(@NonNull JedisConnectionFactory jedisFactory, @NonNull String ip) {
+        if (!hasIp(jedisFactory, ip)) {
+            scrapedIps.add(ip); // Add the IP
+        }
     }
     
     /**
@@ -106,7 +110,7 @@ public abstract class VPNServiceProvider {
                 exists = redis.exists(getRedisKey() + ":" + ip); // Does the IP exist for this provider?
             }
         }
-        log("Checked if the IP {} exists in the database in {}ms", ip, System.currentTimeMillis() - before); // Log timings
+        //log("Checked if the IP {} exists in the database in {}ms", ip, System.currentTimeMillis() - before); // Log timings
         return exists;
     }
     
