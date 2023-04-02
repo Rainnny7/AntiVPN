@@ -223,8 +223,7 @@ public final class AddressService {
             if (optionalCache.isPresent()) { // Return the cached data
                 CachedAddressData cache = optionalCache.get(); // The cached address data
                 AddressData addressData = AntiVPN.GSON.fromJson(cache.getJson(), AddressData.class);
-                boolean hasAllData = (lookupAsn && addressData.getAsn() != null)
-                                         && (lookupGeographical && addressData.getGeographical() != null);
+                boolean hasAllData = cache.hasLookupData() && cache.getLookupData().containsAll(lookupData); // Whether the cache has all the data we need
                 log.info("Found cached data for IP {} (Took {}ms){}",
                     ip,
                     System.currentTimeMillis() - beforeCache,
@@ -356,8 +355,13 @@ public final class AddressService {
                 asnData.get(), // The ASN data of the IP
                 geographicalData.get() // The geographical data of the IP
             );
-            addressCacheRepository.save(new CachedAddressData(ip,
-                AntiVPN.GSON.toJson(addressData), System.currentTimeMillis())); // Cache the address data
+            // Cache the address data
+            addressCacheRepository.save(new CachedAddressData(
+                ip,
+                lookupData,
+                AntiVPN.GSON.toJson(addressData),
+                System.currentTimeMillis()
+            ));
             return addressData;
         }
         

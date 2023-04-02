@@ -9,6 +9,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.redis.core.RedisHash;
 
 import java.io.Serializable;
+import java.util.Set;
 
 /**
  * A cache for {@link AddressService.AddressData}.
@@ -26,7 +27,14 @@ public class CachedAddressData implements Serializable {
     @Id @NonNull private final String ip;
     
     /**
-     * The json representing the {@link AddressService.AddressData}..
+     * The data that was looked up when fetching this address.
+     *
+     * @see AddressService.AddressLookupData for lookup data
+     */
+    private final Set<AddressService.AddressLookupData> lookupData;
+    
+    /**
+     * The json representing the {@link AddressService.AddressData}.
      */
     @NonNull private final String json;
     
@@ -34,4 +42,14 @@ public class CachedAddressData implements Serializable {
      * The timestamp of when this was cached.
      */
     private final long timestamp;
+    
+    /**
+     * Check if this cache has lookup data.
+     *
+     * @return true if it has lookup data, otherwise false
+     * @see #lookupData for lookup data
+     */
+    public boolean hasLookupData() {
+        return lookupData != null;
+    }
 }

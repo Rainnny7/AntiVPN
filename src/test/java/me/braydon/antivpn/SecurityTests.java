@@ -15,6 +15,11 @@ import org.springframework.boot.test.autoconfigure.data.mongo.DataMongoTest;
     "spring.data.mongodb.uri=mongodb://admin:Fx2J8aU9e3bhnz2Viu2K@10.10.10.110:27017/antivpn_dev?authSource=admin",
 })
 public final class SecurityTests {
+    /**
+     * The api key repository.
+     *
+     * @see APIKeyRepository for api key repository
+     */
     @Autowired private APIKeyRepository apiKeyRepository;
     
     /**
