@@ -5,6 +5,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.AuthUtils;
+import me.braydon.antivpn.common.ETagUtils;
 import me.braydon.antivpn.common.MemoryFormatter;
 import me.braydon.antivpn.model.APIKey;
 import me.braydon.antivpn.provider.VPNServiceProvider;
@@ -64,7 +65,7 @@ public class AddressController {
             data = new HashSet<>();
         }
         AuthUtils.checkRateLimit(); // Checking for rate limit
-        return ResponseEntity.ok(AddressService.AddressData.from(jedisFactory, addressCacheRepository, ip, data));
+        return ETagUtils.generateFor(ResponseEntity.ok(), AddressService.AddressData.from(jedisFactory, addressCacheRepository, ip, data));
     }
     
     @PostMapping("/blacklist")
