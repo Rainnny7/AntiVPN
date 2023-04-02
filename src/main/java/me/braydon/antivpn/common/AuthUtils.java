@@ -2,8 +2,10 @@ package me.braydon.antivpn.common;
 
 import lombok.NonNull;
 import lombok.experimental.UtilityClass;
+import me.braydon.antivpn.exception.APIException;
 import me.braydon.antivpn.exception.RateLimitException;
 import me.braydon.antivpn.model.APIKey;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -28,7 +30,7 @@ public final class AuthUtils {
         if (apiKey.hasPermission(permissions)) { // Has permissions, no need to throw an exception
             return;
         }
-        throw new LockedException("Lacking permissions");
+        throw new APIException(HttpStatus.FORBIDDEN, new LockedException("Lacking permissions"));
     }
     
     /**

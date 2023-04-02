@@ -20,16 +20,26 @@ public class APIException extends RuntimeException {
     @NonNull private final HttpStatus status;
     
     /**
-     * Constructs a new runtime exception with the specified detail message.
-     * The cause is not initialized, and may subsequently be initialized by a
-     * call to {@link #initCause}.
+     * Create a new API exception.
      *
      * @param status  the status code
-     * @param message the detail message. The detail message is saved for
-     *                later retrieval by the {@link #getMessage()} method.
+     * @param message the message
+     * @see HttpStatus for status code
      */
     public APIException(@NonNull HttpStatus status, @NonNull String message) {
         super(message);
+        this.status = status;
+    }
+    
+    /**
+     * Create a new API exception.
+     *
+     * @param status    the status code
+     * @param exception the exception
+     * @see HttpStatus for status code
+     */
+    public APIException(@NonNull HttpStatus status, @NonNull Exception exception) {
+        super(exception);
         this.status = status;
     }
 }
