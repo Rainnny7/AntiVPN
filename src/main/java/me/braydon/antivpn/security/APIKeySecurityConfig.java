@@ -15,9 +15,14 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.preauth.AbstractPreAuthenticatedProcessingFilter;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.Arrays;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Responsible for requiring authentication using
@@ -29,7 +34,26 @@ import java.util.Set;
 @EnableWebSecurity
 @Slf4j(topic = "Security")
 @Order(1)
-public class APIKeySecurityConfig {
+@EnableWebMvc
+public class APIKeySecurityConfig implements WebMvcConfigurer {
+    /**
+     * The host to bind to for this application.
+     */
+    @Value("${server.address}")
+    private String address;
+    
+    /**
+     * The port to bind to for this application.
+     */
+    @Value("${server.port}")
+    private int port;
+    
+    /**
+     * The cors origins to allow.
+     */
+    @Value("${server.cors-allowed-origins}")
+    private String[] corsAllowedOrigins;
+    
     /**
      * The name of the header to
      * use to check for the API key.
@@ -88,7 +112,8 @@ public class APIKeySecurityConfig {
             }
             log.info("-".repeat(65));
         }
-        http.csrf().disable() // Disable CSRF
+        http.cors().and()
+            .csrf().disable() // Disable CSRF
             .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS) // No sessions
             .and().authorizeRequests().antMatchers("/error").permitAll() // Permit access to /error
             .and() // Require authentication keys for all other routes
@@ -97,6 +122,21 @@ public class APIKeySecurityConfig {
             .anyRequest()
             .authenticated(); // Specific route permissions
         return http.build();
+    }
+    
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        String[] allowedOrigins = Stream.concat(
+            Stream.of(String.format("^(http|https)://%s:%s", address, port)),
+            Arrays.stream(corsAllowedOrigins)
+        ).toArray(String[]::new);
+        for (String allowedOrigin : allowedOrigins) { // Log the allowed origins
+            log.info("CORS Allowed origin: {}", allowedOrigin);
+        }
+        registry.addMapping("/**")
+            .allowedOriginPatterns(allowedOrigins)
+            .allowedMethods("GET", "POST")
+            .allowedHeaders("Content-Type", authHeader);
     }
     
     public final class KeyFilter extends AbstractPreAuthenticatedProcessingFilter {

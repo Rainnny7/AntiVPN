@@ -12,8 +12,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import javax.annotation.PostConstruct;
 import java.io.File;
@@ -40,18 +38,6 @@ public class AntiVPN {
      */
     public static ExecutorService THREAD_POOL;
     private static int INDEXED_THREAD_COUNT; // The indexed thread count
-    
-    /**
-     * The host to bind to for this application.
-     */
-    @Value("${server.address}")
-    private String address;
-    
-    /**
-     * The port to bind to for this application.
-     */
-    @Value("${server.port}")
-    private int port;
     
     /**
      * The Redis server host.
@@ -105,24 +91,6 @@ public class AntiVPN {
         THREAD_POOL = Executors.newFixedThreadPool(threads, task -> {
             return new Thread(task, "AntiVPN #" + (INDEXED_THREAD_COUNT++)); // Create a new thread
         });
-    }
-    
-    /**
-     * Get the cors configuration.
-     *
-     * @return the configuration
-     * @see WebMvcConfigurer for configuration
-     */
-    @Bean @NonNull
-    public WebMvcConfigurer corsConfigurer() {
-        return new WebMvcConfigurer() {
-            @Override
-            public void addCorsMappings(@NonNull CorsRegistry registry) {
-                registry.addMapping("/**").allowedOriginPatterns(
-                    String.format("^(http|https)://%s:%s", address, port)
-                );
-            }
-        };
     }
     
     /**
