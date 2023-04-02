@@ -222,7 +222,7 @@ public final class AddressService {
                 throw new IllegalArgumentException("Invalid IP address");
             }
             if (matchesDomain) { // Extract the IP from the domain
-                rawIp = InetAddress.getByName(rawIp).getHostAddress();
+                rawIp = InetAddress.getByName(rawIp).getHostAddress(); // Extract the IP
                 log.info("Extracted IP from domain: {}", rawIp); // Log the extracted IP
             }
             String ip = rawIp; // The IP to lookup
@@ -253,6 +253,9 @@ public final class AddressService {
             }
             // Running a full lookup
             InetAddress inetAddress = InetAddress.getByName(ip); // The inet address
+            if (inetAddress.isLoopbackAddress() || inetAddress.isSiteLocalAddress()) { // Cannot lookup loopback or local addresses
+                throw new IllegalArgumentException("Cannot lookup loopback or local addresses");
+            }
             float risk = 0.0f; // The calculated risk score
             List<Supplier<Float>> riskSuppliers = new ArrayList<>(); // The suppliers for calculating the risk score
             
