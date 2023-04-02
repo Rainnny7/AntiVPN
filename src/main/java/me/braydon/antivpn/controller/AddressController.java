@@ -60,7 +60,8 @@ public class AddressController {
     public ResponseEntity<?> check() {
         AuthUtils.validatePermissions(APIKey.Permission.VIEW_STATS); // Validate permissions
         Runtime runtime = Runtime.getRuntime(); // The current runtime environment
-        long usedMemory = runtime.totalMemory() - runtime.freeMemory();
+        long totalMemory = runtime.totalMemory();
+        long usedMemory = totalMemory - runtime.freeMemory();
         long maxMemory = runtime.maxMemory();
         long freeMemory = maxMemory - usedMemory;
         
@@ -91,6 +92,7 @@ public class AddressController {
         JsonObject memoryJsonObject = new JsonObject();
         memoryJsonObject.addProperty("used", MemoryFormatter.format(usedMemory));
         memoryJsonObject.addProperty("max", MemoryFormatter.format(maxMemory));
+        memoryJsonObject.addProperty("total", MemoryFormatter.format(totalMemory));
         memoryJsonObject.addProperty("free", MemoryFormatter.format(freeMemory));
         applicationJsonObject.add("memory", memoryJsonObject);
         
