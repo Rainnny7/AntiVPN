@@ -58,10 +58,14 @@ public class AddressController {
         LinkedHashMap<String, Object> stats = new LinkedHashMap<>();
         
         // Stat to show IPs per provider
-        Map<String, Integer> ips = new HashMap<>();
+        LinkedHashMap<String, Integer> ips = new LinkedHashMap<>();
+        int total = 0;
         for (VPNServiceProvider provider : VPNServiceProvider.getRegistry()) {
-            ips.put(provider.getName(), provider.getIps().size());
+            int ipCount = provider.getIps().size();
+            ips.put(provider.getName(), ipCount);
+            total+= ipCount;
         }
+        ips.put("total", total);
         stats.put("ips", ips);
         
         // Blacklisted stats
