@@ -41,6 +41,11 @@ public final class AddressService {
     private static final String ADDRESS_REGEX = "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$";
     
     /**
+     * The regex expression for validating domains.
+     */
+    private static final String DOMAIN_REGEX = "^((?!-))(xn--)?[a-z0-9][a-z0-9-_]{0,61}[a-z0-9]?\\.(xn--)?([a-z0-9\\-]{1,61}|[a-z0-9-]{1,30}\\.[a-z]{2,})$";
+    
+    /**
      * The blacklisted ASN numbers.
      * TODO: Make this automatic somehow, or at least configurable
      */
@@ -200,8 +205,9 @@ public final class AddressService {
          * Generate data for the given IP address.
          *
          * @param jedisFactory the jedis factory instance
-         * @param ip           the ip
+         * @param rawIp        the ip
          * @param lookupData   the optional types of data to lookup
+         * @param ignoreCache  whether we want to ignore the cache
          * @return the generated data
          * @see AddressLookupData the data type
          * @see JedisConnectionFactory for jedis factory
@@ -209,30 +215,39 @@ public final class AddressService {
         @NonNull @SneakyThrows
         public static AddressData from(@NonNull JedisConnectionFactory jedisFactory,
                                        @NonNull AddressCacheRepository addressCacheRepository,
-                                       @NonNull String ip, Set<AddressService.AddressLookupData> lookupData) {
-            if (!ip.matches(ADDRESS_REGEX)) { // Provided IP is not a valid IPv4 address
+                                       @NonNull String rawIp, Set<AddressService.AddressLookupData> lookupData,
+                                       boolean ignoreCache) {
+            boolean matchesDomain = rawIp.matches(DOMAIN_REGEX);
+            if (!rawIp.matches(ADDRESS_REGEX) && !matchesDomain) { // Provided IP is not a valid IPv4 address or domain
                 throw new IllegalArgumentException("Invalid IP address");
             }
+            if (matchesDomain) { // Extract the IP from the domain
+                rawIp = InetAddress.getByName(rawIp).getHostAddress();
+            }
+            String ip = rawIp; // The IP to lookup
+            
             boolean lookupAsn = lookupData.contains(AddressLookupData.ASN); // Whether to lookup ASN data
             boolean lookupGeographical = lookupData.contains(AddressLookupData.GEOGRAPHICAL); // Whether to lookup geographical data
             log.info("Looking up data for IP: {}", ip); // Log the IP lookup
             
-            // Checking the cache
-            long beforeCache = System.currentTimeMillis(); // Before the cache lookup started
-            Optional<CachedAddressData> optionalCache = addressCacheRepository.findById(ip);
-            if (optionalCache.isPresent()) { // Return the cached data
-                CachedAddressData cache = optionalCache.get(); // The cached address data
-                AddressData addressData = AntiVPN.GSON.fromJson(cache.getJson(), AddressData.class);
-                boolean hasAllData = cache.hasLookupData() && cache.getLookupData().containsAll(lookupData); // Whether the cache has all the data we need
-                log.info("Found cached data for IP {} (Took {}ms){}",
-                    ip,
-                    System.currentTimeMillis() - beforeCache,
-                    hasAllData ? "" : ", but it's missing data, running a full lookup..."
-                ); // Log that we found the cache
-                
-                if (hasAllData) { // Are we trying to lookup more data that we have cached?
-                    addressData.flagCached(cache.getTimestamp()); // Flag the cached data
-                    return addressData; // Return the cached data
+            // Checking the cache if we're not ignoring it
+            if (!ignoreCache) {
+                long beforeCache = System.currentTimeMillis(); // Before the cache lookup started
+                Optional<CachedAddressData> optionalCache = addressCacheRepository.findById(ip);
+                if (optionalCache.isPresent()) { // Return the cached data
+                    CachedAddressData cache = optionalCache.get(); // The cached address data
+                    AddressData addressData = AntiVPN.GSON.fromJson(cache.getJson(), AddressData.class);
+                    boolean hasAllData = cache.hasLookupData() && cache.getLookupData().containsAll(lookupData); // Whether the cache has all the data we need
+                    log.info("Found cached data for IP {} (Took {}ms){}",
+                        ip,
+                        System.currentTimeMillis() - beforeCache,
+                        hasAllData ? "" : ", but it's missing data, running a full lookup..."
+                    ); // Log that we found the cache
+                    
+                    if (hasAllData) { // Are we trying to lookup more data that we have cached?
+                        addressData.flagCached(cache.getTimestamp()); // Flag the cached data
+                        return addressData; // Return the cached data
+                    }
                 }
             }
             // Running a full lookup
@@ -319,6 +334,8 @@ public final class AddressService {
                                 location.getLongitude(),
                                 location.getTimeZone()
                             ));
+                            
+                            System.out.println("location.getAccuracyRadius() = " + location.getAccuracyRadius());
                             
                             // Checking if the country is blacklisted
                             if (BLACKLISTED_COUNTRIES.contains(country.getName())) {

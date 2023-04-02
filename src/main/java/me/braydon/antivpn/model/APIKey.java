@@ -176,6 +176,11 @@ public final class APIKey {
     
     public enum Permission {
         /**
+         * Allows ignoring of the address cache.
+         */
+        IGNORE_ADDRESS_CACHE,
+        
+        /**
          * Allows modification of blacklists.
          */
         BLACKLIST_MODIFY,

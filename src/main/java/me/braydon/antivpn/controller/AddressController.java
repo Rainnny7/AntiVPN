@@ -60,12 +60,18 @@ public class AddressController {
      */
     @RequestMapping(value = "/check", method = { RequestMethod.GET, RequestMethod.OPTIONS })
     @ResponseBody
-    public ResponseEntity<?> check(@RequestParam @NonNull String ip, @RequestParam(required = false) Set<AddressService.AddressLookupData> data) {
+    public ResponseEntity<?> check(@RequestParam @NonNull String ip,
+                                   @RequestParam(required = false) Set<AddressService.AddressLookupData> data,
+                                   @RequestParam(required = false) boolean ignoreCache) {
         if (data == null) { // Default the list
             data = new HashSet<>();
         }
         AuthUtils.checkRateLimit(); // Checking for rate limit
-        return ETagUtils.generateFor(ResponseEntity.ok(), AddressService.AddressData.from(jedisFactory, addressCacheRepository, ip, data));
+        if (ignoreCache) { // Validate permissions to ignore the cache
+            AuthUtils.validatePermissions(APIKey.Permission.IGNORE_ADDRESS_CACHE);
+        }
+        return ETagUtils.generateFor(ResponseEntity.ok(),
+            AddressService.AddressData.from(jedisFactory, addressCacheRepository, ip, data, ignoreCache));
     }
     
     @PostMapping("/blacklist")
