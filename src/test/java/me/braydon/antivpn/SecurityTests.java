@@ -26,7 +26,7 @@ public final class SecurityTests {
     @DisplayName("Generate a fully privileged API key")
     @Test
     public void fullyPrivilegedApiKey() {
-        APIKey apiKey = APIKey.generate(APIKey.Permission.values()); // Generate the API key
+        APIKey apiKey = APIKey.generate("Generated from security test", APIKey.Permission.values()); // Generate the API key
         Preconditions.condition(apiKey.equals(apiKeyRepository.save(apiKey)),
             "Failed saving the API key"); // Validate the API key was saved successfully
         System.out.printf("Created a fully privileged API key: %s%n", apiKey.getKey()); // Log the creation
