@@ -35,7 +35,7 @@ public abstract class VPNServiceProvider {
      */
     public static final ExecutorService THREAD_POOL = Executors.newFixedThreadPool(12, task -> {
         return new Thread(task, "AntiVPN #" + (THREAD_COUNT++)); // Create a new thread
-    }));
+    });
     
     /**
      * The registered {@link VPNServiceProvider}'s.
