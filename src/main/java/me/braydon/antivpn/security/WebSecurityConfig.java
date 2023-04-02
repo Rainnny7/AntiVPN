@@ -33,7 +33,7 @@ import java.util.Set;
 @EnableWebSecurity
 @Slf4j(topic = "Security")
 @Order(Ordered.HIGHEST_PRECEDENCE)
-public class APIKeySecurityConfig {
+public class WebSecurityConfig {
     /**
      * The name of the header to
      * use to check for the API key.
@@ -47,7 +47,7 @@ public class APIKeySecurityConfig {
     @NonNull private final APIKeyRepository repository;
     
     @Autowired
-    public APIKeySecurityConfig(@NonNull APIKeyRepository repository) {
+    public WebSecurityConfig(@NonNull APIKeyRepository repository) {
         this.repository = repository;
     }
     
