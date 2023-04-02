@@ -30,7 +30,7 @@ public abstract class VPNServiceProvider {
      *
      * @see ExecutorService for thread pool
      */
-    public static final ExecutorService THREAD_POOL = Executors.newCachedThreadPool();
+    public static final ExecutorService THREAD_POOL = Executors.newFixedThreadPool(12);
     
     /**
      * The registered {@link VPNServiceProvider}'s.

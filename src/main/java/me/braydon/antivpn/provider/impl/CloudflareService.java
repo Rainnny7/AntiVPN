@@ -2,7 +2,6 @@ package me.braydon.antivpn.provider.impl;
 
 import inet.ipaddr.IPAddress;
 import inet.ipaddr.IPAddressString;
-import lombok.SneakyThrows;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.springframework.stereotype.Component;
@@ -36,7 +35,7 @@ public final class CloudflareService extends VPNServiceProvider {
      * regions for this provider.
      * </p>
      */
-    @PostConstruct @SneakyThrows
+    @PostConstruct
     public void initialize() {
         // Add a scrape task to get all provider ips
         addScrapeTask(new TimedScrapeTask(TimeUnit.DAYS.toMillis(1L), () -> {

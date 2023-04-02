@@ -5,13 +5,10 @@ import com.google.gson.JsonObject;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import me.braydon.antivpn.AntiVPN;
+import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.xbill.DNS.Lookup;
-import org.xbill.DNS.Record;
-import org.xbill.DNS.TextParseException;
-import org.xbill.DNS.Type;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
@@ -28,7 +25,7 @@ import java.util.concurrent.TimeUnit;
  * @author Braydon
  */
 @Component
-public final class PIAService extends VPNServiceProvider {
+public final class PiaService extends VPNServiceProvider {
     private static final String GITHUB_REPO = "Lars-/PIA-servers"; // The GitHub repository to scrape for server IPs
     private static final String GET_SERVERS_ENDPOINT = "https://serverlist.piaservers.net/vpninfo/servers/v6"; // Getting server regions/dns
     private static final String MASTER_TREES_ENDPOINT = String.format("https://api.github.com/repos/%s/git/trees/master", GITHUB_REPO); // Getting tree list
@@ -56,7 +53,7 @@ public final class PIAService extends VPNServiceProvider {
      */
     @NonNull private final Map<String, String> regions = Collections.synchronizedMap(new HashMap<>());
     
-    public PIAService() {
+    public PiaService() {
         super("Private Internet Access", TimeUnit.DAYS.toMillis(14L));
     }
     
@@ -104,21 +101,7 @@ public final class PIAService extends VPNServiceProvider {
         // Add a scrape task to perform a DNS lookup of all A records for all regions
         addScrapeTask(new TimedScrapeTask(TimeUnit.MINUTES.toMillis(2L), () -> {
             for (String dns : regions.values()) {
-                VPNServiceProvider.THREAD_POOL.submit(() -> {
-                    Record[] records;
-                    try {
-                        records = new Lookup(dns, Type.A).run();
-                        if (records == null) { // Error when retrieving DNS records
-                            throw new NullPointerException(String.format("Could not retrieve DNS records for '%s'", dns));
-                        }
-                        for (Record record : records) {
-                            String value = record.rdataToString(); // The value of the record
-                            addIp(value, "DNS Lookup - " + dns); // Add the IP address
-                        }
-                    } catch (TextParseException ex) {
-                        throw new RuntimeException(ex);
-                    }
-                });
+                VPNServiceProvider.THREAD_POOL.submit(() -> IPUtils.getIpFromDns(dns, ip -> addIp(ip, "DNS Lookup - " + dns)));
             }
         }));
         
