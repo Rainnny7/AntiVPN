@@ -33,7 +33,9 @@ public abstract class VPNServiceProvider {
      *
      * @see ExecutorService for thread pool
      */
-    public static final ExecutorService THREAD_POOL = Executors.newCachedThreadPool(task -> new Thread(task, "AntiVPN #" + (THREAD_COUNT++)));
+    public static final ExecutorService THREAD_POOL = Executors.newFixedThreadPool(12, task -> {
+        return new Thread(task, "AntiVPN #" + (THREAD_COUNT++)); // Create a new thread
+    }));
     
     /**
      * The registered {@link VPNServiceProvider}'s.
