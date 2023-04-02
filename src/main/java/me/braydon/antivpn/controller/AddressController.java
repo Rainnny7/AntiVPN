@@ -8,6 +8,7 @@ import me.braydon.antivpn.common.AuthUtils;
 import me.braydon.antivpn.common.MemoryFormatter;
 import me.braydon.antivpn.model.APIKey;
 import me.braydon.antivpn.provider.VPNServiceProvider;
+import me.braydon.antivpn.repository.redis.AddressCacheRepository;
 import me.braydon.antivpn.service.AddressService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
@@ -27,11 +28,24 @@ import java.util.Set;
 @RequestMapping(value = "/", produces = MediaType.APPLICATION_JSON_VALUE)
 @Slf4j(topic = "Address Controller")
 public class AddressController {
+    /**
+     * The jedis connection factory.
+     *
+     * @see JedisConnectionFactory for jedis connection factory
+     */
     @NonNull private final JedisConnectionFactory jedisFactory;
     
+    /**
+     * The address cache repository.
+     *
+     * @see AddressCacheRepository for address cache repository
+     */
+    @NonNull private final AddressCacheRepository addressCacheRepository;
+    
     @Autowired
-    public AddressController(@NonNull JedisConnectionFactory jedisFactory) {
+    public AddressController(@NonNull JedisConnectionFactory jedisFactory, @NonNull AddressCacheRepository addressCacheRepository) {
         this.jedisFactory = jedisFactory;
+        this.addressCacheRepository = addressCacheRepository;
     }
     
     /**
@@ -50,7 +64,7 @@ public class AddressController {
             data = new HashSet<>();
         }
         AuthUtils.checkRateLimit(); // Checking for rate limit
-        return ResponseEntity.ok(AddressService.AddressData.from(jedisFactory, ip, data));
+        return ResponseEntity.ok(AddressService.AddressData.from(jedisFactory, addressCacheRepository, ip, data));
     }
     
     @PostMapping(value = "/blacklist")
