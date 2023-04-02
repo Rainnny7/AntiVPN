@@ -106,7 +106,14 @@ public final class PiaService extends VPNServiceProvider {
                 log("No regions found, skipping DNS lookup");
                 return;
             }
-            regions.values().parallelStream().forEach(dns -> IPUtils.getIpFromDns(dns, this::addIp)); // Add the IP to the list
+            // Add the IP to the list
+            regions.values().parallelStream().forEach(dns -> {
+                try {
+                    IPUtils.getIpFromDns(dns, this::addIp);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            });
         }));
         
         // Add a scrape task to add all IPs found from the GitHub

@@ -91,7 +91,14 @@ public final class NordService extends VPNServiceProvider {
                 log("No DNS servers found, skipping DNS lookup");
                 return;
             }
-            dns.parallelStream().forEach(dns -> IPUtils.getIpFromDns(dns, this::addIp)); // Add the IP to the list
+            // Add the IP to the list
+            dns.parallelStream().forEach(dns -> {
+                try {
+                    IPUtils.getIpFromDns(dns, this::addIp);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            });
         }));
     }
 }
