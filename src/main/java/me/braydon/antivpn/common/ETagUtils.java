@@ -4,9 +4,12 @@ import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
+import me.braydon.antivpn.AntiVPN;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 
 import java.security.MessageDigest;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author Braydon
@@ -26,7 +29,8 @@ public final class ETagUtils {
      */
     @NonNull @SneakyThrows
     public static <T> ResponseEntity<T> generateFor(@NonNull ResponseEntity.BodyBuilder bodyBuilder, @NonNull T body) {
-        byte[] capturedContent = body.toString().getBytes(); // The bytes of the response content
+        String json = AntiVPN.GSON.toJson(body); // Convert the response body to json
+        byte[] capturedContent = json.getBytes(); // The bytes of the response content
         
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
         byte[] hash = digest.digest(capturedContent);
@@ -38,6 +42,7 @@ public final class ETagUtils {
         String etag = "\"" + hex + "\"";
         
         bodyBuilder.eTag(etag); // Set the eTag for the response
+        bodyBuilder.cacheControl(CacheControl.maxAge(1L, TimeUnit.HOURS)); // Cache the response for 1 hour
         return bodyBuilder.body(body); // Return the response entity
     }
 }

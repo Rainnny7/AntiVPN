@@ -58,7 +58,7 @@ public class AddressController {
      * @return the json response
      * @see AddressService.AddressData#from for more
      */
-    @GetMapping("/check")
+    @RequestMapping(value = "/check", method = { RequestMethod.GET, RequestMethod.OPTIONS })
     @ResponseBody
     public ResponseEntity<?> check(@RequestParam @NonNull String ip, @RequestParam(required = false) Set<AddressService.AddressLookupData> data) {
         if (data == null) { // Default the list
