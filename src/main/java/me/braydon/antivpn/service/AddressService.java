@@ -4,6 +4,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.maxmind.geoip2.exception.GeoIp2Exception;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
+import com.maxmind.geoip2.record.City;
+import com.maxmind.geoip2.record.Continent;
+import com.maxmind.geoip2.record.Country;
 import com.maxmind.geoip2.record.Location;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +19,6 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -184,18 +186,9 @@ public final class AddressService {
             AtomicBoolean vpnProvider = new AtomicBoolean(); // Whether this address belongs to a VPN provider
             Set<BlacklistType> blacklisted = new HashSet<>(); // The types of blacklists this address is on
             
-            // ASN data
-            AtomicLong asnNumber = new AtomicLong();
-            AtomicReference<String> asnOrganization = new AtomicReference<>();
-            AtomicReference<String> asnNetwork = new AtomicReference<>();
-            
-            // Geographical data
-            AtomicReference<String> continent = new AtomicReference<>();
-            AtomicReference<String> country = new AtomicReference<>();
-            AtomicReference<String> city = new AtomicReference<>();
-            AtomicReference<Double> latitude = new AtomicReference<>();
-            AtomicReference<Double> longitude = new AtomicReference<>();
-            AtomicReference<String> timezone = new AtomicReference<>();
+            // Extra data to fetch
+            AtomicReference<AsnData> asnData = new AtomicReference<>(null);
+            AtomicReference<GeographicalData> geographicalData = new AtomicReference<>(null);
             
             // Check if the IP belongs to any provider
             riskSuppliers.add(() -> {
@@ -217,12 +210,16 @@ public final class AddressService {
                     MaxmindService.getInstance().submitTask(databaseReader -> {
                         try {
                             AsnResponse asnResponse = databaseReader.asn(inetAddress);
-                            asnNumber.set(asnResponse.getAutonomousSystemNumber()); // The ASN number
-                            asnOrganization.set(asnResponse.getAutonomousSystemOrganization()); // The ASN organization
-                            asnNetwork.set(asnResponse.getNetwork().toString()); // The ASN network
                             
-                            // Checking the blacklist
-                            if (BLACKLISTED_ASN_NUMBERS.contains(asnNumber.get())) {
+                            // Set the response
+                            asnData.set(new AsnData(
+                                asnResponse.getAutonomousSystemNumber(),
+                                asnResponse.getAutonomousSystemOrganization(),
+                                asnResponse.getNetwork().toString()
+                            ));
+                            
+                            // Checking if the ASN number is blacklisted
+                            if (BLACKLISTED_ASN_NUMBERS.contains(asnData.get().getNumber())) {
                                 blacklisted.add(BlacklistType.ASN);
                                 asnRisk.set(0.4f);
                             }
@@ -243,15 +240,25 @@ public final class AddressService {
                         try {
                             CityResponse cityResponse = databaseReader.city(inetAddress);
                             Location location = cityResponse.getLocation(); // The location of the IP
-                            continent.set(cityResponse.getContinent().getName()); // The continent
-                            country.set(cityResponse.getCountry().getName()); // The country
-                            city.set(cityResponse.getCity().getName()); // The city
-                            latitude.set(location.getLatitude()); // The location latitude
-                            longitude.set(location.getLongitude()); // The location longitude
-                            timezone.set(location.getTimeZone()); // The location timezone
+                            Continent continent = cityResponse.getContinent(); // The continent of the IP
+                            Country country = cityResponse.getCountry(); // The country of the IP
+                            City city = cityResponse.getCity(); // The city of the IP
+                            
+                            // Set the response
+                            geographicalData.set(new GeographicalData(
+                                continent.getCode(),
+                                continent.getName(),
+                                country.getIsoCode(),
+                                country.getName(),
+                                country.isInEuropeanUnion(),
+                                city == null ? null : city.getName(), // How can this be null..?
+                                location.getLatitude(),
+                                location.getLongitude(),
+                                location.getTimeZone()
+                            ));
                             
                             // Checking if the country is blacklisted
-                            if (BLACKLISTED_COUNTRIES.contains(country.get())) {
+                            if (BLACKLISTED_COUNTRIES.contains(country.getName())) {
                                 blacklisted.add(BlacklistType.COUNTRY);
                                 countryRisk.set(0.4f);
                             }
@@ -279,26 +286,18 @@ public final class AddressService {
                 risk, // The risk score we calculated
                 vpnProvider.get(), // Is the IP from a VPN provider?
                 blacklisted, // The blacklists the IP may be apart of
-                lookupAsn ? new AsnData( // The ASN number originating from the IP
-                    asnNumber.get(),
-                    asnOrganization.get(),
-                    asnNetwork.get()
-                ) : null,
-                lookupGeographical ? new GeographicalData( // The geographical data of the IP
-                    continent.get(),
-                    country.get(),
-                    city.get(),
-                    latitude.get(),
-                    longitude.get(),
-                    timezone.get()
-                ) : null
+                asnData.get(), // The ASN data of the IP
+                geographicalData.get() // The geographical data of the IP
             );
         }
         
         /**
          * The ASN data of an IP address.
          */
-        @AllArgsConstructor @Getter @ToString
+        @AllArgsConstructor
+        @Getter
+        @ToString
+        @JsonInclude(JsonInclude.Include.NON_NULL)
         public static class AsnData {
             /**
              * The ASN number of an IP address.
@@ -319,12 +318,25 @@ public final class AddressService {
         /**
          * The geographical data of an IP address.
          */
-        @AllArgsConstructor @Getter @ToString
+        @AllArgsConstructor
+        @Getter
+        @ToString
+        @JsonInclude(JsonInclude.Include.NON_NULL)
         public static class GeographicalData {
+            /**
+             * The originating continent code of an IP address.
+             */
+            @NonNull private final String continentCode;
+            
             /**
              * The originating continent of an IP address.
              */
             @NonNull private final String continent;
+            
+            /**
+             * The originating country ISO code of an IP address.
+             */
+            @NonNull private final String countryIsoCode;
             
             /**
              * The originating country of an IP address.
@@ -332,9 +344,14 @@ public final class AddressService {
             @NonNull private final String country;
             
             /**
+             * Whether the originating country is part of the European Union.
+             */
+            private final boolean europeanUnion;
+            
+            /**
              * The originating city of an IP address.
              */
-            @NonNull private final String city;
+            private final String city;
             
             /**
              * The latitude of the location of an IP address.
