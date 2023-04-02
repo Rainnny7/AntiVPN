@@ -72,7 +72,7 @@ public final class PiaService extends VPNServiceProvider {
                 HttpRequest request = HttpRequest.newBuilder()
                                           .uri(URI.create(GET_SERVERS_ENDPOINT))
                                           .GET()
-                                          .timeout(Duration.ofSeconds(5L))
+                                          .timeout(Duration.ofSeconds(20L))
                                           .build();
                 HttpResponse<String> response = AntiVPN.HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
                 if (response.statusCode() != 200) { // If the status code is not 200
@@ -142,7 +142,7 @@ public final class PiaService extends VPNServiceProvider {
             HttpRequest request = HttpRequest.newBuilder()
                                       .uri(URI.create(endpoint))
                                       .GET()
-                                      .timeout(Duration.ofSeconds(5L))
+                                      .timeout(Duration.ofSeconds(20L))
                                       .header("Accept", "application/vnd.github+json")
                                       .header("X-GitHub-Api-Version", githubApiVersion)
                                       .header("Authorization", "Bearer " + githubBearer)

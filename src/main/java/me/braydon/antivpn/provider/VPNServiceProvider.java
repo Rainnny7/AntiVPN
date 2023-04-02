@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -25,12 +26,14 @@ import java.util.function.BooleanSupplier;
  */
 @Getter
 public abstract class VPNServiceProvider {
+    private static int THREAD_COUNT; // The thread count to keep track of threads
+    
     /**
      * The thread pool to use for scraping of providers.
      *
      * @see ExecutorService for thread pool
      */
-    public static final ExecutorService THREAD_POOL = Executors.newFixedThreadPool(12);
+    public static final ExecutorService THREAD_POOL = Executors.newCachedThreadPool(task -> new Thread(task, "AntiVPN #" + (THREAD_COUNT++)));
     
     /**
      * The registered {@link VPNServiceProvider}'s.
@@ -196,7 +199,6 @@ public abstract class VPNServiceProvider {
         if (!dirty) { // Not dirty, no need to save
             return;
         }
-        dirty = false; // Remove the dirty flag
         try {
             if (!storageFile.exists()) { // Create the storage file if it doesn't exist
                 File parent = storageFile.getParentFile();
@@ -218,6 +220,7 @@ public abstract class VPNServiceProvider {
             try (FileWriter fileWriter = new FileWriter(storageFile)) {
                 fileWriter.write(AntiVPN.GSON.toJson(jsonObject));
                 log("Saved storage file"); // Log that we saved the storage file
+                dirty = false; // Remove the dirty flag
             }
         } catch (IOException ex) {
             ex.printStackTrace();

@@ -43,7 +43,7 @@ public final class CloudflareService extends VPNServiceProvider {
                 HttpRequest request = HttpRequest.newBuilder()
                                           .uri(URI.create(GET_IPV4_ENDPOINT))
                                           .GET()
-                                          .timeout(Duration.ofSeconds(5L))
+                                          .timeout(Duration.ofSeconds(20L))
                                           .build();
                 HttpResponse<String> response = AntiVPN.HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
                 if (response.statusCode() != 200) { // If the status code is not 200

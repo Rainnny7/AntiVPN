@@ -53,7 +53,7 @@ public final class NordService extends VPNServiceProvider {
                 HttpRequest request = HttpRequest.newBuilder()
                                           .uri(URI.create(CONFIGS_PAGE))
                                           .GET()
-                                          .timeout(Duration.ofSeconds(5L))
+                                          .timeout(Duration.ofSeconds(20L))
                                           .build();
                 HttpResponse<String> response = AntiVPN.HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
                 if (response.statusCode() != 200) { // If the status code is not 200
