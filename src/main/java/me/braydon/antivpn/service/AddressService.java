@@ -61,6 +61,7 @@ public final class AddressService {
         // ASN Numbers
         BLACKLISTED_ASN_NUMBERS.add(212238L);
         BLACKLISTED_ASN_NUMBERS.add(18345L);
+        BLACKLISTED_ASN_NUMBERS.add(13335L); // CF
         
         // Countries
         BLACKLISTED_COUNTRIES.add("Australia");
