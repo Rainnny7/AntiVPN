@@ -2,6 +2,7 @@ package me.braydon.antivpn.common;
 
 import lombok.NonNull;
 import lombok.experimental.UtilityClass;
+import me.braydon.antivpn.exception.RateLimitException;
 import me.braydon.antivpn.model.APIKey;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.Authentication;
@@ -17,19 +18,46 @@ public final class AuthUtils {
      * key has any of the given permissions.
      *
      * @param permissions the permissions
-     * @throws LockedException if permissions are not met
+     * @throws IllegalStateException if no API key is found
+     * @throws LockedException       if permissions are not met
      * @see APIKey for api key
      * @see APIKey.Permission for permission
      */
     public static void validatePermissions(@NonNull APIKey.Permission... permissions) {
+        APIKey apiKey = getCurrentAPIKey(); // Get the current API key
+        if (apiKey.hasPermission(permissions)) { // Has permissions, no need to throw an exception
+            return;
+        }
+        throw new LockedException("Lacking permissions");
+    }
+    
+    /**
+     * Check if this currently authenticated
+     * API key is rate limited.
+     *
+     * @throws RateLimitException if rate limited
+     */
+    public static void checkRateLimit() throws RateLimitException {
+        APIKey apiKey = getCurrentAPIKey(); // Get the current API key
+        if (apiKey.isRateLimited()) { // The API key is rate limited
+            throw new RateLimitException();
+        }
+    }
+    
+    /**
+     * Get the currently authenticated API key.
+     *
+     * @return the api key
+     * @throws IllegalStateException if no API key is found
+     * @see APIKey for api key
+     */
+    @NonNull
+    public APIKey getCurrentAPIKey() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         Object credentials;
         if (authentication != null && ((credentials = authentication.getCredentials()) != null)) { // Authentication
-            APIKey apiKey = (APIKey) credentials;
-            if (apiKey.hasPermission(permissions)) { // Has permissions, no need to throw an exception
-                return;
-            }
+            return (APIKey) credentials;
         }
-        throw new LockedException("Lacking permissions");
+        throw new IllegalStateException("No API key found in current session");
     }
 }

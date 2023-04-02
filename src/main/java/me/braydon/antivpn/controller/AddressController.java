@@ -35,6 +35,7 @@ public class AddressController {
         if (data == null) { // Default the list
             data = new HashSet<>();
         }
+        AuthUtils.checkRateLimit(); // Checking for rate limit
         return ResponseEntity.ok(AddressService.AddressData.from(ip, data));
     }
     

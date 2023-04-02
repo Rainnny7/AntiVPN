@@ -56,22 +56,22 @@ public class APIKeySecurityConfig {
             if (apiKey == null) { // No API key found
                 throw new BadCredentialsException(String.format("Invalid API key: %s", principal));
             }
+            // Updating the API key
             apiKey.use(); // API key was used
             repository.save(apiKey); // Save the API key
             
-            // Log the key
+            // Log the API key being used
             log.info(String.format("API key '%s' was used (desc=%s, uses=%s)",
                 apiKey.getKey(),
                 apiKey.getDescription(),
                 apiKey.getUses()
             ));
-            
-            authentication.setAuthenticated(true); // We're authenticated
+            authentication.setAuthenticated(true); // Mark the session as authenticated
             return authentication;
         });
         // Create a default API key if none exist
         if (repository.count() == 0) {
-            APIKey apiKey = APIKey.generate(APIKey.Permission.values()); // Generate the API key
+            APIKey apiKey = APIKey.generate("First API Key", APIKey.Permission.values()); // Generate the API key
             Set<APIKey.Permission> permissions = apiKey.getPermissions(); // The permissions of the API key
             repository.save(apiKey); // Save the API key
             

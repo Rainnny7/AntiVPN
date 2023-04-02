@@ -2,6 +2,7 @@ package me.braydon.antivpn.exception;
 
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.ToString;
 import org.springframework.http.HttpStatus;
 
 /**
@@ -11,7 +12,7 @@ import org.springframework.http.HttpStatus;
  * @author Braydon
  * @see HttpStatus for status code
  */
-@Getter
+@Getter @ToString
 public class APIException extends RuntimeException {
     /**
      * The {@link HttpStatus} of this error.
