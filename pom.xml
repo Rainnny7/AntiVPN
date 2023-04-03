@@ -69,6 +69,14 @@
             <artifactId>jedis</artifactId>
         </dependency>
 
+        <!-- Stats 😎 -->
+        <dependency>
+            <groupId>com.influxdb</groupId>
+            <artifactId>influxdb-client-java</artifactId>
+            <version>6.8.0</version>
+            <scope>compile</scope>
+        </dependency>
+
         <!-- Spring -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

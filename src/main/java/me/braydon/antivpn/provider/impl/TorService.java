@@ -2,6 +2,7 @@ package me.braydon.antivpn.provider.impl;
 
 import lombok.NonNull;
 import me.braydon.antivpn.AntiVPN;
+import me.braydon.antivpn.metrics.MetricService;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
@@ -35,8 +36,8 @@ public final class TorService extends VPNServiceProvider {
     @NonNull private final JedisConnectionFactory jedisFactory;
     
     @Autowired
-    public TorService(@NonNull JedisConnectionFactory jedisFactory) {
-        super("Tor", TimeUnit.DAYS.toMillis(7L));
+    public TorService(@NonNull JedisConnectionFactory jedisFactory, @NonNull MetricService metrics) {
+        super("Tor", TimeUnit.DAYS.toMillis(7L), metrics);
         this.jedisFactory = jedisFactory;
     }
     

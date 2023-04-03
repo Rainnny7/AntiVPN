@@ -27,7 +27,8 @@ public final class ETagUtils {
      * @see ResponseEntity.BodyBuilder for response body builder
      * @see ResponseEntity for response entity
      */
-    @NonNull @SneakyThrows
+    @NonNull
+    @SneakyThrows
     public static <T> ResponseEntity<T> generateFor(@NonNull ResponseEntity.BodyBuilder bodyBuilder, @NonNull T body) {
         String json = AntiVPN.GSON.toJson(body); // Convert the response body to json
         byte[] capturedContent = json.getBytes(); // The bytes of the response content

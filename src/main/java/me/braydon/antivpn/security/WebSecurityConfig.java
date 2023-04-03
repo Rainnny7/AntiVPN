@@ -2,6 +2,8 @@ package me.braydon.antivpn.security;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import me.braydon.antivpn.metrics.MetricService;
+import me.braydon.antivpn.metrics.impl.DatabaseTracker;
 import me.braydon.antivpn.model.APIKey;
 import me.braydon.antivpn.repository.mongodb.APIKeyRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,12 +48,19 @@ public class WebSecurityConfig {
      */
     @NonNull private final APIKeyRepository repository;
     
+    /**
+     * The {@link MetricService} to use.
+     */
+    @NonNull private final MetricService metrics;
+    
     @Autowired
-    public WebSecurityConfig(@NonNull APIKeyRepository repository) {
+    public WebSecurityConfig(@NonNull APIKeyRepository repository, @NonNull MetricService metrics) {
         this.repository = repository;
+        this.metrics = metrics;
     }
     
-    @Bean @NonNull
+    @Bean
+    @NonNull
     public SecurityFilterChain filterChain(@NonNull HttpSecurity http) throws Exception {
         KeyFilter filter = new KeyFilter();
         filter.setAuthenticationManager(authentication -> {
@@ -124,11 +133,14 @@ public class WebSecurityConfig {
         @Override
         protected APIKey getPreAuthenticatedCredentials(@NonNull HttpServletRequest request) {
             String principal = (String) getPreAuthenticatedPrincipal(request); // The API key provided
-            APIKey apiKey;
-            if (principal != null && (apiKey = repository.findByKey(principal)) != null) { // No API key found
-                return apiKey;
+            APIKey apiKey = null;
+            long before = System.currentTimeMillis();
+            if (principal != null) { // API key provided, look it up
+                apiKey = repository.findByKey(principal);
             }
-            return null;
+            metrics.getTracker(DatabaseTracker.class).submitResponseTime(
+                DatabaseTracker.DatabaseType.MONGODB, System.currentTimeMillis() - before); // Metrics
+            return apiKey;
         }
     }
 }

@@ -4,6 +4,8 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import me.braydon.antivpn.common.StringUtils;
+import me.braydon.antivpn.metrics.MetricService;
+import me.braydon.antivpn.metrics.impl.DatabaseTracker;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.slf4j.SLF4JLogger;
 import org.springframework.data.redis.connection.DefaultStringRedisConnection;
@@ -46,6 +48,11 @@ public abstract class VPNServiceProvider {
     @NonNull private final SLF4JLogger logger;
     
     /**
+     * The metrics service instance to use.
+     */
+    @NonNull private final MetricService metrics;
+    
+    /**
      * The scrape tasks for this provider.
      *
      * @see ScrapeTask for scrape task
@@ -62,10 +69,11 @@ public abstract class VPNServiceProvider {
      */
     @NonNull private final Set<String> scrapedIps = Collections.synchronizedSet(new TreeSet<>());
     
-    public VPNServiceProvider(@NonNull String name, long ipExpiration) {
+    public VPNServiceProvider(@NonNull String name, long ipExpiration, @NonNull MetricService metrics) {
         this.name = name;
         this.ipExpiration = ipExpiration;
         logger = (SLF4JLogger) org.apache.logging.log4j.LogManager.getLogger(name); // Setup the logger
+        this.metrics = metrics;
         registry.add(this); // Register this provider
     }
     
@@ -110,7 +118,8 @@ public abstract class VPNServiceProvider {
                 exists = redis.exists(getRedisKey() + ":" + ip); // Does the IP exist for this provider?
             }
         }
-        //log("Checked if the IP {} exists in the database in {}ms", ip, System.currentTimeMillis() - before); // Log timings
+        metrics.getTracker(DatabaseTracker.class).submitResponseTime(
+            DatabaseTracker.DatabaseType.REDIS, System.currentTimeMillis() - before); // Metrics
         return exists;
     }
     
@@ -132,6 +141,8 @@ public abstract class VPNServiceProvider {
                 .map(key -> key.substring(redisKey.length())) // Extract the IP address
                 .forEach(ips::add); // Add the IP address to the set
         }
+        metrics.getTracker(DatabaseTracker.class).submitResponseTime(
+            DatabaseTracker.DatabaseType.REDIS, System.currentTimeMillis() - before); // Metrics
         log("Retrieved {} IPs from the database in {}ms",
             StringUtils.formatNumber(ips.size()),
             System.currentTimeMillis() - before
@@ -147,7 +158,6 @@ public abstract class VPNServiceProvider {
     public final void scrape(@NonNull JedisConnectionFactory jedisFactory) {
         for (ScrapeTask scrapeTask : scrapeTasks) {
             if (!scrapeTask.canRun()) { // Can't run
-                //                log("Skipping task {}...", scrapeTask.getName()); // Log that we skipped the task
                 continue;
             }
             try {
@@ -163,6 +173,7 @@ public abstract class VPNServiceProvider {
             
             String redisKey = getRedisKey() + ":"; // The redis key
             String now = String.valueOf(System.currentTimeMillis()); // The current timestamp
+            long before = System.currentTimeMillis();
             try (StringRedisConnection redis = new DefaultStringRedisConnection(jedisFactory.getConnection())) {
                 redis.openPipeline(); // Open a pipeline
                 for (String scrapedIp : scrapedIps) { // Add the IPs to the database
@@ -171,8 +182,12 @@ public abstract class VPNServiceProvider {
                 int inserted = redis.closePipeline().size(); // Close the pipeline which then returns the results
                 
                 // Log the IPs being added
-                log("Successfully inserted {} IPs into the database", StringUtils.formatNumber(inserted));
+                log("Successfully inserted {} IPs into the database, took {}ms",
+                    StringUtils.formatNumber(inserted), System.currentTimeMillis() - before
+                );
             }
+            metrics.getTracker(DatabaseTracker.class).submitResponseTime(
+                DatabaseTracker.DatabaseType.REDIS, System.currentTimeMillis() - before); // Metrics
             scrapedIps.clear(); // Clear the scraped IPs after we've inserted them
         }
     }

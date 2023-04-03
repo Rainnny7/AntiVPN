@@ -102,7 +102,8 @@ public class AntiVPN {
      * @return the config
      * @see RedisTemplate for config
      */
-    @Bean @NonNull
+    @Bean
+    @NonNull
     public RedisTemplate<String, Object> redisTemplate() {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(jedisConnectionFactory());
@@ -116,7 +117,8 @@ public class AntiVPN {
      * @return the built factory
      * @see JedisConnectionFactory for factory
      */
-    @Bean @NonNull
+    @Bean
+    @NonNull
     public JedisConnectionFactory jedisConnectionFactory() {
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(redisHost, redisPort);
         config.setDatabase(redisDatabase);

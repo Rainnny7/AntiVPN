@@ -7,6 +7,7 @@ import lombok.SneakyThrows;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.common.StringUtils;
+import me.braydon.antivpn.metrics.MetricService;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -64,8 +65,8 @@ public final class PiaService extends VPNServiceProvider {
     @NonNull private final JedisConnectionFactory jedisFactory;
     
     @Autowired
-    public PiaService(@NonNull JedisConnectionFactory jedisFactory) {
-        super("Private Internet Access", TimeUnit.DAYS.toMillis(14L));
+    public PiaService(@NonNull JedisConnectionFactory jedisFactory, @NonNull MetricService metrics) {
+        super("Private Internet Access", TimeUnit.DAYS.toMillis(14L), metrics);
         this.jedisFactory = jedisFactory;
     }
     
@@ -76,7 +77,8 @@ public final class PiaService extends VPNServiceProvider {
      * regions for this provider.
      * </p>
      */
-    @PostConstruct @SneakyThrows
+    @PostConstruct
+    @SneakyThrows
     public void initialize() {
         // Add a scrape task to get all server regions
         addScrapeTask(new TimedScrapeTask("Fetch Regions", TimeUnit.MINUTES.toMillis(10L), () -> {

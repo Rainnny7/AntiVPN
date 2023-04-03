@@ -17,6 +17,13 @@ github:
   bearer: "" # Your GitHub bearer token
   api-version: "2022-11-28" # The version of the GitHub API to use
 
+# InfluxDB Configuration - Used to store metrics
+influxdb:
+  url: "https://influxdb.local.rainnny.club"
+  token: "YOUR_TOKEN"
+  org: "YOUR_ORG"
+  bucket: "YOUR_BUCKET"
+
 # Log Configuration
 logging:
   file:

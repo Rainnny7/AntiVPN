@@ -4,6 +4,7 @@ import lombok.NonNull;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.common.StringUtils;
+import me.braydon.antivpn.metrics.MetricService;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -45,8 +46,8 @@ public final class NordService extends VPNServiceProvider {
     @NonNull private final JedisConnectionFactory jedisFactory;
     
     @Autowired
-    public NordService(@NonNull JedisConnectionFactory jedisFactory) {
-        super("NordVPN", TimeUnit.DAYS.toMillis(7L));
+    public NordService(@NonNull JedisConnectionFactory jedisFactory, @NonNull MetricService metrics) {
+        super("NordVPN", TimeUnit.DAYS.toMillis(7L), metrics);
         this.jedisFactory = jedisFactory;
     }
     

@@ -4,6 +4,7 @@ import inet.ipaddr.IPAddress;
 import inet.ipaddr.IPAddressString;
 import lombok.NonNull;
 import me.braydon.antivpn.AntiVPN;
+import me.braydon.antivpn.metrics.MetricService;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
@@ -35,8 +36,8 @@ public final class CloudflareService extends VPNServiceProvider {
     @NonNull private final JedisConnectionFactory jedisFactory;
     
     @Autowired
-    public CloudflareService(@NonNull JedisConnectionFactory jedisFactory) {
-        super("Cloudflare", TimeUnit.DAYS.toMillis(7L));
+    public CloudflareService(@NonNull JedisConnectionFactory jedisFactory, @NonNull MetricService metrics) {
+        super("Cloudflare", TimeUnit.DAYS.toMillis(7L), metrics);
         this.jedisFactory = jedisFactory;
     }
     

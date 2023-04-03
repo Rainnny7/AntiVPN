@@ -213,7 +213,8 @@ public final class AddressService {
          * @see AddressLookupData the data type
          * @see JedisConnectionFactory for jedis factory
          */
-        @NonNull @SneakyThrows
+        @NonNull
+        @SneakyThrows
         public static AddressData from(@NonNull JedisConnectionFactory jedisFactory,
                                        @NonNull AddressCacheRepository addressCacheRepository,
                                        @NonNull String rawIp, Set<AddressService.AddressLookupData> lookupData,

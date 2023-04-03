@@ -1,6 +1,10 @@
 package me.braydon.antivpn.log;
 
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import me.braydon.antivpn.metrics.MetricService;
+import me.braydon.antivpn.metrics.impl.RequestTracker;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConverter;
@@ -30,6 +34,13 @@ import java.util.Map.Entry;
 @ControllerAdvice
 @Slf4j(topic = "Req/Res Transaction")
 public class TransactionLogger implements ResponseBodyAdvice<Object> {
+    @NonNull private final MetricService metrics;
+    
+    @Autowired
+    public TransactionLogger(@NonNull MetricService metrics) {
+        this.metrics = metrics;
+    }
+    
     @Override
     public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
         return true;
@@ -41,6 +52,7 @@ public class TransactionLogger implements ResponseBodyAdvice<Object> {
                                   ServerHttpResponse rawResponse) {
         HttpServletRequest request = ((ServletServerHttpRequest) rawRequest).getServletRequest();
         HttpServletResponse response = ((ServletServerHttpResponse) rawResponse).getServletResponse();
+        metrics.getTracker(RequestTracker.class).submitRequest(); // Metrics
         
         // Get the request ip address
         String address = request.getRemoteAddr();
