@@ -8,7 +8,7 @@ jobs:
       - name: Checkout
         uses: https://github.com/actions/checkout@v3
       - name: Set up JDK
-        uses: https://github.com/actions/setup-java@v3
+        uses: https://github.com/actions/setup-java
         with:
           java-version: '17'
           distribution: 'temurin'
