@@ -6,12 +6,12 @@ jobs:
     container: git.rainnny.club/rainnny/gitea-runner:maven
     steps:
       - name: Checkout
-        uses: https://github.com/actions/checkout@v3
+        uses: https://gitea.com/actions/checkout@v3
       - name: Set up JDK
-        uses: https://github.com/actions/setup-java@v3
+        uses: https://gitea.com/actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'semeru'
 
       - name: Maven Build
-        run: mvn clean package -T12 --batch-mode --update-snapshots -Dmaven.test.skip=true
+        run: mvn clean package --batch-mode --update-snapshots -Dmaven.test.skip=true
