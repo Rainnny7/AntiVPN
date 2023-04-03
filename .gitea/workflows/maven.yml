@@ -3,6 +3,7 @@ on: [ push ]
 jobs:
   build:
     runs-on: ubuntu-latest
+    container: git.rainnny.club/rainnny/gitea-runner:maven
     steps:
       - name: Checkout
         uses: https://github.com/actions/checkout@v3
@@ -11,5 +12,6 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+
       - name: Maven Build
         run: mvn clean package -T12 --batch-mode --update-snapshots -Dmaven.test.skip=true
