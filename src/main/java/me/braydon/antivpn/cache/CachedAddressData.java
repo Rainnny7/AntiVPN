@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.ToString;
-import me.braydon.antivpn.service.AddressService;
+import me.braydon.antivpn.address.AddressService;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.redis.core.RedisHash;
 
