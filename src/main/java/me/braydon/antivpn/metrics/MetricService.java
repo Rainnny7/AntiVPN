@@ -62,6 +62,10 @@ public final class MetricService {
     
     @PostConstruct
     public void initialize() {
+        if (url.isEmpty()) { // Don't enable metrics if the url is empty
+            log.warn("InfluxDB URL is empty, metrics will not be tracked");
+            return;
+        }
         // Registering tracks
         trackers.add(new ProviderTracker()); // Provider tracking
         trackers.add(new DatabaseTracker()); // Database tracking
