@@ -54,11 +54,11 @@ public class TransactionLogger implements ResponseBodyAdvice<Object> {
         HttpServletResponse response = ((ServletServerHttpResponse) rawResponse).getServletResponse();
         metrics.getTracker(RequestTracker.class).submitRequest(); // Metrics
         
-        // Get the request ip address
-        String address = request.getRemoteAddr();
+        // Get the request ip ip
+        String ip = request.getRemoteAddr();
         String cfAddress = request.getHeader("CF-Connecting-IP");
-        if (cfAddress != null) { // Use the CloudFlare address if present in the request
-            address = cfAddress;
+        if (cfAddress != null) { // Use the CloudFlare ip if present in the request
+            ip = cfAddress;
         }
         
         // Getting params
@@ -78,7 +78,7 @@ public class TransactionLogger implements ResponseBodyAdvice<Object> {
         // Log the request
         log.info(String.format("[Req] %s | %s | '%s', params=%s, headers=%s",
             request.getMethod(),
-            address,
+            ip,
             request.getRequestURI(),
             params,
             headers

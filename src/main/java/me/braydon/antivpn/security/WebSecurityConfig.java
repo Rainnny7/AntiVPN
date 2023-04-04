@@ -176,6 +176,10 @@ public class WebSecurityConfig {
      */
     private void checkRatelimit(@NonNull HttpServletRequest request) {
         String ip = request.getRemoteAddr();
+        String cfAddress = request.getHeader("CF-Connecting-IP");
+        if (cfAddress != null) { // Use the CloudFlare ip if present in the request
+            ip = cfAddress;
+        }
         Tuple<RateLimiter, Long> tuple = ipRateLimiters.get(ip);
         if (tuple == null) { // No rate limiter made yet
             tuple = new Tuple<>(new RateLimiter(100, TimeUnit.MINUTES), System.currentTimeMillis());
