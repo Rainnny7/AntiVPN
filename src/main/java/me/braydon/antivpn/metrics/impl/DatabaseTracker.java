@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
@@ -17,7 +19,7 @@ import java.util.function.BiFunction;
  * @author Braydon
  */
 public final class DatabaseTracker extends MetricTracker {
-    private final Map<DatabaseType, List<Long>> responseTimes = new HashMap<>(); // Response times
+    private ConcurrentHashMap<DatabaseType, CopyOnWriteArrayList<Long>> responseTimes = new ConcurrentHashMap<>(); // Response times
     private int cacheHits, cacheMisses; // Cache stats
     
     public DatabaseTracker() {
@@ -37,13 +39,14 @@ public final class DatabaseTracker extends MetricTracker {
     @Override
     public void track(@NonNull List<Point> chain) {
         // Response times
-        for (Map.Entry<DatabaseType, List<Long>> entry : responseTimes.entrySet()) { // Iterate through the response times
-            List<Long> responseTimes = new ArrayList<>(entry.getValue());
+        for (Map.Entry<DatabaseType, CopyOnWriteArrayList<Long>> entry : responseTimes.entrySet()) { // Iterate through the response times
+            List<Long> responseTimes = entry.getValue();
+            int responseCount = responseTimes.size();
             long totalResponseTime = 0L;
             for (long responseTime : responseTimes) { // Iterate through the response times for this database
                 totalResponseTime += responseTime;
             }
-            long averageResponseTime = totalResponseTime / responseTimes.size();
+            long averageResponseTime = totalResponseTime / responseCount;
             chain.add(Point.measurement("databaseResponseTimes")
                           .addTag("type", entry.getKey().name())
                           .addField("value", averageResponseTime));
@@ -72,7 +75,7 @@ public final class DatabaseTracker extends MetricTracker {
      * @see DatabaseType for database
      */
     public void submitResponseTime(@NonNull DatabaseType type, long time) {
-        responseTimes.computeIfAbsent(type, databaseType -> new ArrayList<>()).add(time);
+        responseTimes.computeIfAbsent(type, databaseType -> new CopyOnWriteArrayList<>()).add(time);
     }
     
     /**
