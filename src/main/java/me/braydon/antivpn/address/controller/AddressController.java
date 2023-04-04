@@ -1,9 +1,11 @@
-package me.braydon.antivpn.controller;
+package me.braydon.antivpn.address.controller;
 
 import com.google.gson.JsonObject;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.AntiVPN;
+import me.braydon.antivpn.address.AddressData;
+import me.braydon.antivpn.address.AddressService;
 import me.braydon.antivpn.common.AuthUtils;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.common.MemoryFormatter;
@@ -12,7 +14,6 @@ import me.braydon.antivpn.metrics.impl.RequestTracker;
 import me.braydon.antivpn.model.APIKey;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import me.braydon.antivpn.repository.redis.AddressCacheRepository;
-import me.braydon.antivpn.service.AddressService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
@@ -75,7 +76,7 @@ public class AddressController {
      * </p>
      *
      * @return the json response
-     * @see AddressService.AddressData#from for more
+     * @see AddressService#from for more
      */
     @GetMapping("/check")
     @ResponseBody
@@ -90,7 +91,7 @@ public class AddressController {
         if (ignoreCache) { // Validate permissions to ignore the cache
             AuthUtils.validatePermissions(APIKey.Permission.IGNORE_ADDRESS_CACHE);
         }
-        return ResponseEntity.ok(AddressService.AddressData.from(jedisFactory, addressCacheRepository, metrics, ip, data, ignoreCache));
+        return ResponseEntity.ok(AddressService.from(jedisFactory, addressCacheRepository, metrics, ip, data, ignoreCache));
     }
     
     /**
@@ -107,10 +108,10 @@ public class AddressController {
         }
         metrics.getTracker(RequestTracker.class).submitLookup(); // Metrics
         String ip = IPUtils.getRealIp(request);
-        AddressService.AddressData addressData = AddressService.AddressData.from(jedisFactory, addressCacheRepository,
+        AddressData addressData = AddressService.from(jedisFactory, addressCacheRepository,
             metrics, ip, Set.of(AddressService.AddressLookupData.values()), false);
         return ResponseEntity.ok(Map.of(
-            "status", addressData.getRisk() > 0.3D ? "Yes, you're using a VPN" : "No, you're not using a VPN",
+            "message", addressData.getRisk() > 0.3D ? "Yes, you're using a VPN" : "No, you're not using a VPN",
             "type", addressData.getIpType()
         ));
     }

@@ -207,6 +207,11 @@ public final class APIKey {
     
     public enum Permission {
         /**
+         * Allows purging of the cache.
+         */
+        PURGE_CACHE,
+        
+        /**
          * Allows ignoring of the address cache.
          */
         IGNORE_ADDRESS_CACHE,

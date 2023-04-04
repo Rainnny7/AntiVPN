@@ -122,7 +122,7 @@ public class WebSecurityConfig {
         }
         CorsConfiguration corsConfiguration = new CorsConfiguration();
         corsConfiguration.setAllowedOriginPatterns(List.of("*"));
-        corsConfiguration.setAllowedMethods(List.of("GET", "POST"));
+        corsConfiguration.setAllowedMethods(List.of("GET", "POST", "DELETE"));
         corsConfiguration.setAllowedHeaders(List.of("Content-Type", authHeader));
         corsConfiguration.setAllowCredentials(true);
         for (String allowedOrigin : Objects.requireNonNull(corsConfiguration.getAllowedOriginPatterns())) { // Log the allowed origins
