@@ -16,6 +16,11 @@ import java.util.function.Consumer;
 @UtilityClass
 public final class IPUtils {
     /**
+     * The regex expression for validating IPv4 addresses.
+     */
+    public static final String ADDRESS_REGEX = "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$";
+    
+    /**
      * Get the real IP from the given request.
      *
      * @param request the request
@@ -29,6 +34,17 @@ public final class IPUtils {
             ip = cfAddress;
         }
         return ip;
+    }
+    
+    /**
+     * Check if the given input is
+     * a valid IPv4 address.
+     *
+     * @param input the input
+     * @return true if IPv4, otherwise false
+     */
+    public static boolean isIpV4(@NonNull String input) {
+        return input.matches(ADDRESS_REGEX);
     }
     
     /**

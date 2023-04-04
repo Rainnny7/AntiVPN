@@ -12,6 +12,7 @@ import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.cache.CachedAddressData;
+import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.metrics.MetricService;
 import me.braydon.antivpn.metrics.impl.DatabaseTracker;
 import me.braydon.antivpn.provider.VPNServiceProvider;
@@ -37,11 +38,6 @@ import java.util.function.Supplier;
 @Service
 @Slf4j(topic = "VPN Service")
 public final class AddressService {
-    /**
-     * The regex expression for validating IPv4 addresses.
-     */
-    public static final String ADDRESS_REGEX = "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$";
-    
     /**
      * The regex expression for validating domains.
      */
@@ -221,8 +217,9 @@ public final class AddressService {
                                        @NonNull AddressCacheRepository addressCacheRepository,
                                        @NonNull MetricService metrics, @NonNull String rawIp,
                                        Set<AddressService.AddressLookupData> lookupData, boolean ignoreCache) {
+            log.info("Attempting to lookup data for '{}'...", rawIp); // Log the IP lookup
             boolean matchesDomain = rawIp.matches(DOMAIN_REGEX);
-            if (!rawIp.matches(ADDRESS_REGEX) && !matchesDomain) { // Provided IP is not a valid IPv4 address or domain
+            if (!IPUtils.isIpV4(rawIp) && !matchesDomain) { // Provided IP is not a valid IPv4 address or domain
                 throw new IllegalArgumentException("Invalid IP address");
             }
             if (matchesDomain) { // Extract the IP from the domain
@@ -230,10 +227,10 @@ public final class AddressService {
                 log.info("Extracted IP from domain: {}", rawIp); // Log the extracted IP
             }
             String ip = rawIp; // The IP to lookup
+            log.info("Looking up data for IP: {}", rawIp); // Log the IP lookup
             
             boolean lookupAsn = lookupData.contains(AddressLookupData.ASN); // Whether to lookup ASN data
             boolean lookupGeographical = lookupData.contains(AddressLookupData.GEOGRAPHICAL); // Whether to lookup geographical data
-            log.info("Looking up data for IP: {}", ip); // Log the IP lookup
             
             // Checking the cache if we're not ignoring it
             if (!ignoreCache) {
