@@ -66,7 +66,10 @@ public final class BlacklistController {
             added = true; // We added the entry
         }
         blacklistRepository.save(blacklist); // Save the new entries
-        return ResponseEntity.ok(Map.of("message", "Entry was " + (added ? "added" : "removed")));
+        return ResponseEntity.ok(Map.of(
+            "blacklist", type.name(),
+            "message", String.format("Entry '%s' was %s", entry, added ? "added" : "removed")
+        ));
     }
     
     /**
