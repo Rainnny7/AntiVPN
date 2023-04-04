@@ -238,22 +238,27 @@ public final class AddressService {
             // Checking the cache if we're not ignoring it
             if (!ignoreCache) {
                 long beforeCache = System.currentTimeMillis(); // Before the cache lookup started
-                Optional<CachedAddressData> optionalCache = addressCacheRepository.findById(ip);
-                if (optionalCache.isPresent()) { // Return the cached data
-                    CachedAddressData cache = optionalCache.get(); // The cached address data
-                    AddressData addressData = AntiVPN.GSON.fromJson(cache.getJson(), AddressData.class);
-                    boolean hasAllData = cache.hasLookupData() && cache.getLookupData().containsAll(lookupData); // Whether the cache has all the data we need
-                    log.info("Found cached data for IP {} (Took {}ms){}",
-                        ip,
-                        System.currentTimeMillis() - beforeCache,
-                        hasAllData ? "" : ", but it's missing data, running a full lookup..."
-                    ); // Log that we found the cache
-                    
-                    if (hasAllData) { // Are we trying to lookup more data that we have cached?
-                        metrics.getTracker(DatabaseTracker.class).submitCacheHit(); // Metrics
-                        addressData.flagCached(cache.getTimestamp()); // Flag the cached data
-                        return addressData; // Return the cached data
+                try {
+                    Optional<CachedAddressData> optionalCache = addressCacheRepository.findById(ip);
+                    if (optionalCache.isPresent()) { // Return the cached data
+                        CachedAddressData cache = optionalCache.get(); // The cached address data
+                        AddressData addressData = AntiVPN.GSON.fromJson(cache.getJson(), AddressData.class);
+                        boolean hasAllData = cache.hasLookupData() && cache.getLookupData().containsAll(lookupData); // Whether the cache has all the data we need
+                        log.info("Found cached data for IP {} (Took {}ms){}",
+                            ip,
+                            System.currentTimeMillis() - beforeCache,
+                            hasAllData ? "" : ", but it's missing data, running a full lookup..."
+                        ); // Log that we found the cache
+                        
+                        if (hasAllData) { // Are we trying to lookup more data that we have cached?
+                            metrics.getTracker(DatabaseTracker.class).submitCacheHit(); // Metrics
+                            addressData.flagCached(cache.getTimestamp()); // Flag the cached data
+                            return addressData; // Return the cached data
+                        }
                     }
+                } finally {
+                    metrics.getTracker(DatabaseTracker.class).submitResponseTime(
+                        DatabaseTracker.DatabaseType.REDIS, System.currentTimeMillis() - beforeCache); // Metrics
                 }
             }
             metrics.getTracker(DatabaseTracker.class).submitCacheMiss(); // Metrics

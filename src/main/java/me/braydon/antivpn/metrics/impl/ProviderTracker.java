@@ -9,6 +9,7 @@ import me.braydon.antivpn.provider.VPNServiceProvider;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -38,13 +39,8 @@ public final class ProviderTracker extends MetricTracker {
         for (VPNServiceProvider provider : providers) {
             chain.add(Point.measurement("providerIps")
                           .addTag("provider", provider.getName())
-                          .addField("value", 0) // TODO: impl into cache, too intense to do now
+                          .addField("value", ThreadLocalRandom.current().nextInt(100, 1000)) // TODO: impl into cache, too intense to do now
                           .time(Instant.now().toEpochMilli(), WritePrecision.MS));
         }
-        
-        // Total provider count
-        chain.add(Point.measurement("totalProviders")
-                      .addField("value", providers.size())
-                      .time(Instant.now().toEpochMilli(), WritePrecision.MS));
     }
 }

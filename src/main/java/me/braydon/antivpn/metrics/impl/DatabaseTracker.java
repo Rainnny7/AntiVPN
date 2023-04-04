@@ -43,9 +43,10 @@ public final class DatabaseTracker extends MetricTracker {
             for (long responseTime : responseTimes) { // Iterate through the response times for this database
                 totalResponseTime += responseTime;
             }
+            long averageResponseTime = totalResponseTime / responseTimes.size();
             chain.add(Point.measurement("databaseResponseTimes")
                           .addTag("type", entry.getKey().name())
-                          .addField("value", totalResponseTime / responseTimes.size()));
+                          .addField("value", averageResponseTime));
         }
         responseTimes.clear(); // Clear the response times
         
