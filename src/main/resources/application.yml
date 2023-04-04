@@ -54,4 +54,5 @@ spring:
     exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
 
 threads: 6 # The amount of threads the thread pool should use when ticking
+dev: true # Are we in a development environment?
 debug: false # Enable debug mode

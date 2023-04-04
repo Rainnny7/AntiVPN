@@ -69,7 +69,7 @@ public class AddressController {
      * @return the json response
      * @see AddressService.AddressData#from for more
      */
-    @RequestMapping(value = "/check", method = { RequestMethod.GET, RequestMethod.OPTIONS })
+    @GetMapping("/check")
     @ResponseBody
     public ResponseEntity<?> check(@RequestParam @NonNull String ip,
                                    @RequestParam(required = false) Set<AddressService.AddressLookupData> data,

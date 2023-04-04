@@ -5,6 +5,7 @@ import com.influxdb.client.InfluxDBClientFactory;
 import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
 import lombok.NonNull;
+import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.metrics.impl.DatabaseTracker;
 import me.braydon.antivpn.metrics.impl.ProviderTracker;
 import me.braydon.antivpn.metrics.impl.RequestTracker;
@@ -91,6 +92,12 @@ public final class MetricService {
                     points.add(Point.measurement("pointsPerSecond")
                                    .addField("value", points.size())
                                    .time(Instant.now().toEpochMilli(), WritePrecision.MS)); // PPS metric
+                    
+                    // Tagging all points with the current environment
+                    for (Point point : points) {
+                        point.addTag("environment", AntiVPN.isDevelopment() ? "dev" : "prod");
+                    }
+                    
                     // Writing to Influx
                     try (InfluxDBClient client = InfluxDBClientFactory.create(url, token.toCharArray(), org, bucket)) {
                         client.getWriteApiBlocking().writePoints(points);

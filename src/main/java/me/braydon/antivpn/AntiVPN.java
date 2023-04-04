@@ -2,6 +2,7 @@ package me.braydon.antivpn;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +32,8 @@ public class AntiVPN {
     public static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
                                                      .followRedirects(HttpClient.Redirect.ALWAYS)
                                                      .build(); // The HTTP client to use
+    @Getter private static boolean development;
+    
     /**
      * The thread pool to use for scraping of providers.
      *
@@ -71,6 +74,12 @@ public class AntiVPN {
     @Value("${threads}")
     private int threads;
     
+    /**
+     * Are we in a development environment?
+     */
+    @Value("${dev}")
+    private boolean dev;
+    
     @SneakyThrows
     public static void main(@NonNull String[] args) {
         File config = new File("application.yml");
@@ -83,9 +92,6 @@ public class AntiVPN {
         }
         log.info("Found configuration at '{}'", config.getAbsolutePath()); // Log the found config
         SpringApplication.run(AntiVPN.class, args); // Load the application
-        
-        
-        // TODO: add banning of api keys
     }
     
     @PostConstruct
@@ -94,6 +100,7 @@ public class AntiVPN {
         THREAD_POOL = Executors.newFixedThreadPool(threads, task -> {
             return new Thread(task, "AntiVPN #" + (INDEXED_THREAD_COUNT++)); // Create a new thread
         });
+        development = dev; // Are we using a development environment?
     }
     
     /**
@@ -102,8 +109,7 @@ public class AntiVPN {
      * @return the config
      * @see RedisTemplate for config
      */
-    @Bean
-    @NonNull
+    @Bean @NonNull
     public RedisTemplate<String, Object> redisTemplate() {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(jedisConnectionFactory());
@@ -117,8 +123,7 @@ public class AntiVPN {
      * @return the built factory
      * @see JedisConnectionFactory for factory
      */
-    @Bean
-    @NonNull
+    @Bean @NonNull
     public JedisConnectionFactory jedisConnectionFactory() {
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(redisHost, redisPort);
         config.setDatabase(redisDatabase);
