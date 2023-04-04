@@ -129,6 +129,7 @@ public class AddressController {
         
         // Application stats
         JsonObject applicationJsonObject = new JsonObject();
+        applicationJsonObject.addProperty("environment", AntiVPN.isDevelopment() ? "dev" : "prod");
         applicationJsonObject.addProperty("uptime", ManagementFactory.getRuntimeMXBean().getUptime());
         applicationJsonObject.addProperty("availableProcessors", runtime.availableProcessors());
         
