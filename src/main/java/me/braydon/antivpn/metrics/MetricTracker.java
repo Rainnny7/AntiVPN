@@ -32,11 +32,10 @@ public abstract class MetricTracker {
      * interval for this tracker.
      * </p>
      *
-     * @return the points to write, empty for none
+     * @param chain the chain of points to attach to
      * @see Point for point
      */
-    @NonNull
-    public abstract List<Point> track();
+    public abstract void track(@NonNull List<Point> chain);
     
     /**
      * Get the name of this metric tracker.

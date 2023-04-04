@@ -6,6 +6,7 @@ import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
 import lombok.NonNull;
 import me.braydon.antivpn.metrics.impl.DatabaseTracker;
+import me.braydon.antivpn.metrics.impl.ProviderTracker;
 import me.braydon.antivpn.metrics.impl.RequestTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,8 +63,9 @@ public final class MetricService {
     @PostConstruct
     public void initialize() {
         // Registering tracks
-        trackers.add(new RequestTracker()); // Request tracking
+        trackers.add(new ProviderTracker()); // Provider tracking
         trackers.add(new DatabaseTracker()); // Database tracking
+        trackers.add(new RequestTracker()); // Request tracking
         
         // Creating a new thread to tick trackers at their respective intervals
         new Thread(() -> {
@@ -74,11 +76,12 @@ public final class MetricService {
                     if ((System.currentTimeMillis() - tracker.getLastExecution()) < tracker.getInterval()) {
                         continue;
                     }
-                    List<Point> tracked = tracker.track(); // The points to write
-                    if (!tracked.isEmpty()) { // Add all of the points
-                        points.addAll(tracked);
+                    try {
+                        tracker.track(points); // The points to write
+                        tracker.setLastExecution(System.currentTimeMillis()); // Just executed the tracker
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
                     }
-                    tracker.setLastExecution(System.currentTimeMillis()); // Just executed the tracker
                 }
                 if (!points.isEmpty()) { // We have things to write
                     points.add(Point.measurement("pointsPerSecond")
@@ -123,13 +126,7 @@ public final class MetricService {
     }
     
     /**
-     * total ips (per provider once optimized)
-     * lookups
-     * average database connection time (for Redis & Mongo?)
-     * cache hits/misses?
-     * provider count
      * amount of ips collected per scrape (show avg on grafana)
-     * avg response times
      * number of blacklist entries per blacklist type
      */
 }

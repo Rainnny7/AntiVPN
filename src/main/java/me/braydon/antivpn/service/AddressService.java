@@ -12,6 +12,8 @@ import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.cache.CachedAddressData;
+import me.braydon.antivpn.metrics.MetricService;
+import me.braydon.antivpn.metrics.impl.DatabaseTracker;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import me.braydon.antivpn.repository.redis.AddressCacheRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -217,8 +219,8 @@ public final class AddressService {
         @SneakyThrows
         public static AddressData from(@NonNull JedisConnectionFactory jedisFactory,
                                        @NonNull AddressCacheRepository addressCacheRepository,
-                                       @NonNull String rawIp, Set<AddressService.AddressLookupData> lookupData,
-                                       boolean ignoreCache) {
+                                       @NonNull MetricService metrics, @NonNull String rawIp,
+                                       Set<AddressService.AddressLookupData> lookupData, boolean ignoreCache) {
             boolean matchesDomain = rawIp.matches(DOMAIN_REGEX);
             if (!rawIp.matches(ADDRESS_REGEX) && !matchesDomain) { // Provided IP is not a valid IPv4 address or domain
                 throw new IllegalArgumentException("Invalid IP address");
@@ -248,11 +250,14 @@ public final class AddressService {
                     ); // Log that we found the cache
                     
                     if (hasAllData) { // Are we trying to lookup more data that we have cached?
+                        metrics.getTracker(DatabaseTracker.class).submitCacheHit(); // Metrics
                         addressData.flagCached(cache.getTimestamp()); // Flag the cached data
                         return addressData; // Return the cached data
                     }
                 }
             }
+            metrics.getTracker(DatabaseTracker.class).submitCacheMiss(); // Metrics
+            
             // Running a full lookup
             InetAddress inetAddress = InetAddress.getByName(ip); // The inet address
             if (inetAddress.isLoopbackAddress() || inetAddress.isSiteLocalAddress()) { // Cannot lookup loopback or local addresses
@@ -273,7 +278,7 @@ public final class AddressService {
                 long before = System.currentTimeMillis(); // The time before the lookup
                 float providerRisk = 0.0f; // The risk score for the provider
                 for (VPNServiceProvider provider : VPNServiceProvider.getRegistry()) {
-                    if (!provider.hasIp(jedisFactory, ip)) { // Provider doesn't have this IP
+                    if (!provider.hasIp(jedisFactory, ip, true)) { // Provider doesn't have this IP
                         continue;
                     }
                     vpnProvider.set(true); // IP belongs to a provider
@@ -340,8 +345,6 @@ public final class AddressService {
                                 location.getLongitude(),
                                 location.getTimeZone()
                             ));
-                            
-                            System.out.println("location.getAccuracyRadius() = " + location.getAccuracyRadius());
                             
                             // Checking if the country is blacklisted
                             if (BLACKLISTED_COUNTRIES.contains(country.getName())) {

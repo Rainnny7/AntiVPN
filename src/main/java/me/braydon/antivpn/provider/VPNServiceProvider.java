@@ -49,6 +49,8 @@ public abstract class VPNServiceProvider {
     
     /**
      * The metrics service instance to use.
+     *
+     * @see MetricService for metrics service
      */
     @NonNull private final MetricService metrics;
     
@@ -95,7 +97,7 @@ public abstract class VPNServiceProvider {
      * @see JedisConnectionFactory for jedis factory
      */
     public final void addIp(@NonNull JedisConnectionFactory jedisFactory, @NonNull String ip) {
-        if (!hasIp(jedisFactory, ip)) {
+        if (!hasIp(jedisFactory, ip, false)) {
             scrapedIps.add(ip); // Add the IP
         }
     }
@@ -108,11 +110,11 @@ public abstract class VPNServiceProvider {
      * @return true if it does, otherwise false
      * @see JedisConnectionFactory for jedis factory
      */
-    public final boolean hasIp(@NonNull JedisConnectionFactory jedisFactory, @NonNull String ip) {
+    public final boolean hasIp(@NonNull JedisConnectionFactory jedisFactory, @NonNull String ip, boolean lookupCache) {
         long before = System.currentTimeMillis();
         boolean exists;
-        if (scrapedIps.contains(ip)) { // Check the local cache first
-            exists = true;
+        if (lookupCache) { // Check the local cache first
+            exists = scrapedIps.contains(ip);
         } else {
             try (StringRedisConnection redis = new DefaultStringRedisConnection(jedisFactory.getConnection())) {
                 exists = redis.exists(getRedisKey() + ":" + ip); // Does the IP exist for this provider?

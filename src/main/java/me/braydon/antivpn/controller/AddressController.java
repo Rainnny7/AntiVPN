@@ -7,6 +7,8 @@ import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.AuthUtils;
 import me.braydon.antivpn.common.ETagUtils;
 import me.braydon.antivpn.common.MemoryFormatter;
+import me.braydon.antivpn.metrics.MetricService;
+import me.braydon.antivpn.metrics.impl.RequestTracker;
 import me.braydon.antivpn.model.APIKey;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import me.braydon.antivpn.repository.redis.AddressCacheRepository;
@@ -43,10 +45,19 @@ public class AddressController {
      */
     @NonNull private final AddressCacheRepository addressCacheRepository;
     
+    /**
+     * The metrics service instance to use.
+     *
+     * @see MetricService for metrics service
+     */
+    @NonNull private final MetricService metrics;
+    
     @Autowired
-    public AddressController(@NonNull JedisConnectionFactory jedisFactory, @NonNull AddressCacheRepository addressCacheRepository) {
+    public AddressController(@NonNull JedisConnectionFactory jedisFactory,
+                             @NonNull AddressCacheRepository addressCacheRepository, @NonNull MetricService metrics) {
         this.jedisFactory = jedisFactory;
         this.addressCacheRepository = addressCacheRepository;
+        this.metrics = metrics;
     }
     
     /**
@@ -63,6 +74,7 @@ public class AddressController {
     public ResponseEntity<?> check(@RequestParam @NonNull String ip,
                                    @RequestParam(required = false) Set<AddressService.AddressLookupData> data,
                                    @RequestParam(required = false) boolean ignoreCache) {
+        metrics.getTracker(RequestTracker.class).submitLookup(); // Metrics
         if (data == null) { // Default the list
             data = new HashSet<>();
         }
@@ -71,7 +83,7 @@ public class AddressController {
             AuthUtils.validatePermissions(APIKey.Permission.IGNORE_ADDRESS_CACHE);
         }
         return ETagUtils.generateFor(ResponseEntity.ok(),
-            AddressService.AddressData.from(jedisFactory, addressCacheRepository, ip, data, ignoreCache));
+            AddressService.AddressData.from(jedisFactory, addressCacheRepository, metrics, ip, data, ignoreCache));
     }
     
     @PostMapping("/blacklist")
