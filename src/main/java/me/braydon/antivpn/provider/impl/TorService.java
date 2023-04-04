@@ -51,7 +51,7 @@ public final class TorService extends VPNServiceProvider {
     @PostConstruct
     public void initialize() {
         // Add a scrape task to get all exit nodes
-        addScrapeTask(new TimedScrapeTask("Fetch Exit Nodes", TimeUnit.MINUTES.toMillis(30L), () -> {
+        addScrapeTask(new TimedScrapeTask("Fetch Exit Nodes", TimeUnit.HOURS.toMillis(3L), () -> {
             try {
                 HttpRequest request = HttpRequest.newBuilder()
                                           .uri(URI.create(GET_EXIT_NODES_ENDPOINT))

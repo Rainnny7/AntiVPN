@@ -296,8 +296,8 @@ public abstract class VPNServiceProvider {
          */
         @Override
         public void run() {
-            super.run();
             lastRun = System.currentTimeMillis();
+            super.run();
         }
     }
     
