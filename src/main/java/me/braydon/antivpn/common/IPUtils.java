@@ -7,6 +7,7 @@ import org.xbill.DNS.Record;
 import org.xbill.DNS.TextParseException;
 import org.xbill.DNS.Type;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.function.Consumer;
 
 /**
@@ -14,6 +15,22 @@ import java.util.function.Consumer;
  */
 @UtilityClass
 public final class IPUtils {
+    /**
+     * Get the real IP from the given request.
+     *
+     * @param request the request
+     * @return the real IP
+     */
+    @NonNull
+    public static String getRealIp(@NonNull HttpServletRequest request) {
+        String ip = request.getRemoteAddr();
+        String cfAddress = request.getHeader("CF-Connecting-IP");
+        if (cfAddress != null) { // Use the CloudFlare ip if present in the request
+            ip = cfAddress;
+        }
+        return ip;
+    }
+    
     /**
      * Get the IP target of
      * the given DNS server.

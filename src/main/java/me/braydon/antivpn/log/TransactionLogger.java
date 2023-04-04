@@ -2,6 +2,7 @@ package me.braydon.antivpn.log;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.metrics.MetricService;
 import me.braydon.antivpn.metrics.impl.RequestTracker;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,11 +56,7 @@ public class TransactionLogger implements ResponseBodyAdvice<Object> {
         metrics.getTracker(RequestTracker.class).submitRequest(); // Metrics
         
         // Get the request ip ip
-        String ip = request.getRemoteAddr();
-        String cfAddress = request.getHeader("CF-Connecting-IP");
-        if (cfAddress != null) { // Use the CloudFlare ip if present in the request
-            ip = cfAddress;
-        }
+        String ip = IPUtils.getRealIp(request);
         
         // Getting params
         Map<String, String> params = new HashMap<>();

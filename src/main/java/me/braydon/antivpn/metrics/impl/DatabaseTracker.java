@@ -17,7 +17,7 @@ import java.util.function.BiFunction;
  * @author Braydon
  */
 public final class DatabaseTracker extends MetricTracker {
-    private ConcurrentHashMap<DatabaseType, CopyOnWriteArrayList<Long>> responseTimes = new ConcurrentHashMap<>(); // Response times
+    private final ConcurrentHashMap<DatabaseType, CopyOnWriteArrayList<Long>> responseTimes = new ConcurrentHashMap<>(); // Response times
     private int cacheHits, cacheMisses; // Cache stats
     
     public DatabaseTracker() {

@@ -2,6 +2,7 @@ package me.braydon.antivpn.security;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.common.RateLimiter;
 import me.braydon.antivpn.common.Tuple;
 import me.braydon.antivpn.exception.RateLimitException;
@@ -175,11 +176,7 @@ public class WebSecurityConfig {
      * @see HttpServletRequest for request
      */
     private void checkRatelimit(@NonNull HttpServletRequest request) {
-        String ip = request.getRemoteAddr();
-        String cfAddress = request.getHeader("CF-Connecting-IP");
-        if (cfAddress != null) { // Use the CloudFlare ip if present in the request
-            ip = cfAddress;
-        }
+        String ip = IPUtils.getRealIp(request);
         Tuple<RateLimiter, Long> tuple = ipRateLimiters.get(ip);
         if (tuple == null) { // No rate limiter made yet
             tuple = new Tuple<>(new RateLimiter(100, TimeUnit.MINUTES), System.currentTimeMillis());
