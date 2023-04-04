@@ -13,6 +13,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.blacklist.BlacklistType;
+import me.braydon.antivpn.blacklist.repository.BlacklistRepository;
 import me.braydon.antivpn.cache.AddressCacheRepository;
 import me.braydon.antivpn.cache.CachedAddressData;
 import me.braydon.antivpn.common.IPUtils;
@@ -76,28 +77,6 @@ public final class AddressService {
     };
     
     /**
-     * The blacklisted ASN numbers.
-     * TODO: Make this automatic somehow, or at least configurable
-     */
-    public static final Set<Long> BLACKLISTED_ASN_NUMBERS = new HashSet<>();
-    
-    /**
-     * The blacklisted countries.
-     * TODO: Make this automatic somehow, or at least configurable
-     */
-    public static final Set<String> BLACKLISTED_COUNTRIES = new HashSet<>();
-    
-    static {
-        // ASN Numbers
-        BLACKLISTED_ASN_NUMBERS.add(212238L);
-        BLACKLISTED_ASN_NUMBERS.add(18345L);
-        BLACKLISTED_ASN_NUMBERS.add(13335L); // CF
-        
-        // Countries
-        BLACKLISTED_COUNTRIES.add("Australia");
-    }
-    
-    /**
      * The jedis connection factory.
      *
      * @see JedisConnectionFactory for jedis connection factory
@@ -119,6 +98,13 @@ public final class AddressService {
     @NonNull private final AddressCacheRepository addressCacheRepository;
     
     /**
+     * The blacklist repository.
+     *
+     * @see BlacklistRepository for blacklist repository
+     */
+    @NonNull private final BlacklistRepository blacklistRepository;
+    
+    /**
      * Timestamps to keep track of so
      * we can properly tick the providers.
      */
@@ -126,10 +112,11 @@ public final class AddressService {
     
     @Autowired
     public AddressService(@NonNull JedisConnectionFactory jedisFactory, @NonNull MetricService metrics,
-                          @NonNull AddressCacheRepository addressCacheRepository) {
+                          @NonNull AddressCacheRepository addressCacheRepository, @NonNull BlacklistRepository blacklistRepository) {
         this.jedisFactory = jedisFactory;
         this.metrics = metrics;
         this.addressCacheRepository = addressCacheRepository;
+        this.blacklistRepository = blacklistRepository;
     }
     
     /**
@@ -278,7 +265,8 @@ public final class AddressService {
                 asnData = (AddressData.AsnData) LookupData.ASN.execute(inetAddress);
                 
                 // Checking the ASN blacklist
-                if (BLACKLISTED_ASN_NUMBERS.contains(asnData.getNumber())) {
+                if (blacklistRepository.contains(BlacklistType.ASN, String.valueOf(asnData.getNumber()))) {
+                    log.info("ASN is blacklisted: {}", asnData.getNumber()); // Logging
                     blacklists.add(BlacklistType.ASN);
                     risk += 0.5f;
                 }
@@ -290,7 +278,8 @@ public final class AddressService {
                 geographicalData = (AddressData.GeographicalData) LookupData.GEOGRAPHICAL.execute(inetAddress);
                 
                 // Checking the ASN blacklist
-                if (BLACKLISTED_COUNTRIES.contains(geographicalData.getCountry())) {
+                if (blacklistRepository.contains(BlacklistType.COUNTRY, geographicalData.getCountry())) {
+                    log.info("Country is blacklisted: {}", geographicalData.getCountry()); // Logging
                     blacklists.add(BlacklistType.COUNTRY);
                     risk += 0.4f;
                 }

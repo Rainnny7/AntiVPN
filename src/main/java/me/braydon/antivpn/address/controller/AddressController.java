@@ -5,6 +5,8 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.address.AddressService;
+import me.braydon.antivpn.blacklist.Blacklist;
+import me.braydon.antivpn.blacklist.repository.BlacklistRepository;
 import me.braydon.antivpn.common.AuthUtils;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.common.MemoryFormatter;
@@ -55,6 +57,13 @@ public class AddressController {
     @NonNull private final MetricService metrics;
     
     /**
+     * The blacklist repository.
+     *
+     * @see BlacklistRepository for blacklist repository
+     */
+    @NonNull private final BlacklistRepository blacklistRepository;
+    
+    /**
      * Should we enable the /amiusingavpn route?
      */
     @Value("${amiusingavpn}")
@@ -62,10 +71,12 @@ public class AddressController {
     
     @Autowired
     public AddressController(@NonNull JedisConnectionFactory jedisFactory,
-                             @NonNull AddressService addressService, @NonNull MetricService metrics) {
+                             @NonNull AddressService addressService, @NonNull MetricService metrics,
+                             @NonNull BlacklistRepository blacklistRepository) {
         this.jedisFactory = jedisFactory;
         this.addressService = addressService;
         this.metrics = metrics;
+        this.blacklistRepository = blacklistRepository;
     }
     
     /**
@@ -143,8 +154,9 @@ public class AddressController {
         
         // Blacklisted stats
         JsonObject blacklistedJsonObject = new JsonObject();
-        blacklistedJsonObject.addProperty("asns", AddressService.BLACKLISTED_ASN_NUMBERS.size());
-        blacklistedJsonObject.addProperty("countries", AddressService.BLACKLISTED_COUNTRIES.size());
+        for (Blacklist blacklist : blacklistRepository.findAll()) {
+            blacklistedJsonObject.addProperty(blacklist.getType().name(), blacklist.getEntries().size());
+        }
         jsonObject.add("blacklisted", blacklistedJsonObject); // Adding the blacklist object to the main json object
         
         // Application stats
