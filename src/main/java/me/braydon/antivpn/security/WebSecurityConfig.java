@@ -2,6 +2,9 @@ package me.braydon.antivpn.security;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import me.braydon.antivpn.common.RateLimiter;
+import me.braydon.antivpn.common.Tuple;
+import me.braydon.antivpn.exception.RateLimitException;
 import me.braydon.antivpn.metrics.MetricService;
 import me.braydon.antivpn.metrics.impl.DatabaseTracker;
 import me.braydon.antivpn.model.APIKey;
@@ -21,9 +24,8 @@ import org.springframework.security.web.authentication.preauth.AbstractPreAuthen
 import org.springframework.web.cors.CorsConfiguration;
 
 import javax.servlet.http.HttpServletRequest;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Responsible for requiring authentication using
@@ -53,14 +55,27 @@ public class WebSecurityConfig {
      */
     @NonNull private final MetricService metrics;
     
+    /**
+     * The {@link RateLimiter}s for each IP address.
+     */
+    private final Map<String, Tuple<RateLimiter, Long>> ipRateLimiters = new HashMap<>();
+    
     @Autowired
     public WebSecurityConfig(@NonNull APIKeyRepository repository, @NonNull MetricService metrics) {
         this.repository = repository;
         this.metrics = metrics;
+        
+        // Remove IP rate limiters after inactivity to free up memory
+        new Timer().scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                ipRateLimiters.entrySet()
+                    .removeIf(entry -> System.currentTimeMillis() - entry.getValue().getRight() > TimeUnit.MINUTES.toMillis(5L));
+            }
+        }, TimeUnit.MINUTES.toMillis(3L), TimeUnit.MINUTES.toMillis(3L));
     }
     
-    @Bean
-    @NonNull
+    @Bean @NonNull
     public SecurityFilterChain filterChain(@NonNull HttpSecurity http) throws Exception {
         KeyFilter filter = new KeyFilter();
         filter.setAuthenticationManager(authentication -> {
@@ -126,21 +141,50 @@ public class WebSecurityConfig {
     
     public final class KeyFilter extends AbstractPreAuthenticatedProcessingFilter {
         @Override
-        protected Object getPreAuthenticatedPrincipal(@NonNull HttpServletRequest request) {
-            return request.getHeader(authHeader);
+        protected String getPreAuthenticatedPrincipal(@NonNull HttpServletRequest request) {
+            String header = request.getHeader(authHeader);
+            if (header == null) { // No API key provided, check rate limit
+                checkRatelimit(request);
+            }
+            return header;
         }
         
         @Override
         protected APIKey getPreAuthenticatedCredentials(@NonNull HttpServletRequest request) {
-            String principal = (String) getPreAuthenticatedPrincipal(request); // The API key provided
+            String principal = getPreAuthenticatedPrincipal(request); // The API key provided
             APIKey apiKey = null;
             long before = System.currentTimeMillis();
-            if (principal != null) { // API key provided, look it up
-                apiKey = repository.findByKey(principal);
+            try {
+                if (principal != null) { // API key provided, look it up
+                    apiKey = repository.findByKey(principal);
+                } else { // No API key provided, check rate limit
+                    checkRatelimit(request);
+                }
+            } finally {
+                metrics.getTracker(DatabaseTracker.class).submitResponseTime(
+                    DatabaseTracker.DatabaseType.MONGODB, System.currentTimeMillis() - before); // Metrics
             }
-            metrics.getTracker(DatabaseTracker.class).submitResponseTime(
-                DatabaseTracker.DatabaseType.MONGODB, System.currentTimeMillis() - before); // Metrics
             return apiKey;
+        }
+    }
+    
+    /**
+     * Handle rate limits for unauthorized requests.
+     *
+     * @param request the request to check
+     * @see HttpServletRequest for request
+     */
+    private void checkRatelimit(@NonNull HttpServletRequest request) {
+        String ip = request.getRemoteAddr();
+        Tuple<RateLimiter, Long> tuple = ipRateLimiters.get(ip);
+        if (tuple == null) { // No rate limiter made yet
+            tuple = new Tuple<>(new RateLimiter(100, TimeUnit.MINUTES), System.currentTimeMillis());
+            ipRateLimiters.put(ip, tuple);
+        } else { // Last used the rate limiter
+            tuple.setRight(System.currentTimeMillis());
+        }
+        if (!tuple.getLeft().tryAcquire()) { // IP is rate limited
+            throw new RateLimitException();
         }
     }
 }
