@@ -1,4 +1,4 @@
-package me.braydon.antivpn.repository.mongodb;
+package me.braydon.antivpn.security;
 
 import lombok.NonNull;
 import me.braydon.antivpn.model.APIKey;

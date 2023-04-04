@@ -1,6 +1,5 @@
-package me.braydon.antivpn.repository.redis;
+package me.braydon.antivpn.cache;
 
-import me.braydon.antivpn.cache.CachedAddressData;
 import org.springframework.data.repository.CrudRepository;
 
 /**

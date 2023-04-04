@@ -1,7 +1,7 @@
 package me.braydon.antivpn;
 
 import me.braydon.antivpn.model.APIKey;
-import me.braydon.antivpn.repository.mongodb.APIKeyRepository;
+import me.braydon.antivpn.security.APIKeyRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.commons.util.Preconditions;

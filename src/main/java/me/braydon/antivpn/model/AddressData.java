@@ -1,7 +1,8 @@
-package me.braydon.antivpn.address;
+package me.braydon.antivpn.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.*;
+import me.braydon.antivpn.blacklist.BlacklistType;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
@@ -13,7 +14,7 @@ import java.util.Set;
  *
  * @author Braydon
  */
-@RequiredArgsConstructor(access = AccessLevel.PROTECTED)
+@RequiredArgsConstructor
 @Getter
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString
@@ -156,12 +157,12 @@ public class AddressData {
         /**
          * The latitude of the location of an IP address.
          */
-        @NonNull private final double latitude;
+        private final double latitude;
         
         /**
          * The longitude of the location of an IP address.
          */
-        @NonNull private final double longitude;
+        private final double longitude;
         
         /**
          * The timezone of the location of an IP address.

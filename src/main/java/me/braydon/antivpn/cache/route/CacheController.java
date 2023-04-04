@@ -2,9 +2,9 @@ package me.braydon.antivpn.cache.route;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import me.braydon.antivpn.cache.AddressCacheRepository;
 import me.braydon.antivpn.common.AuthUtils;
 import me.braydon.antivpn.model.APIKey;
-import me.braydon.antivpn.repository.redis.AddressCacheRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;

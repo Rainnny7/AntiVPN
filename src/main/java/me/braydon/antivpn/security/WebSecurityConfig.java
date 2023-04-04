@@ -9,7 +9,6 @@ import me.braydon.antivpn.exception.RateLimitException;
 import me.braydon.antivpn.metrics.MetricService;
 import me.braydon.antivpn.metrics.impl.DatabaseTracker;
 import me.braydon.antivpn.model.APIKey;
-import me.braydon.antivpn.repository.mongodb.APIKeyRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
