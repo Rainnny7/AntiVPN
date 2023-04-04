@@ -4,6 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.ToString;
+import me.braydon.antivpn.AntiVPN;
+import me.braydon.antivpn.address.AddressData;
 import me.braydon.antivpn.address.AddressService;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.redis.core.RedisHash;
@@ -29,12 +31,12 @@ public class CachedAddressData implements Serializable {
     /**
      * The data that was looked up when fetching this address.
      *
-     * @see AddressService.AddressLookupData for lookup data
+     * @see AddressService.LookupData for lookup data
      */
-    private final Set<AddressService.AddressLookupData> lookupData;
+    private final Set<AddressService.LookupData> lookupData;
     
     /**
-     * The json representing the {@link AddressService.AddressData}.
+     * The json representing the {@link AddressData}.
      */
     @NonNull private final String json;
     
@@ -51,5 +53,23 @@ public class CachedAddressData implements Serializable {
      */
     public boolean hasLookupData() {
         return lookupData != null;
+    }
+    
+    /**
+     * Get the cached version of
+     * the given address data.
+     *
+     * @param addressData the address data
+     * @param lookupData  the lookup data used to fetch the address data
+     * @return the cached address data
+     */
+    @NonNull
+    public static CachedAddressData asCache(@NonNull AddressData addressData, Set<AddressService.LookupData> lookupData) {
+        return new CachedAddressData(
+            addressData.getIp(),
+            lookupData,
+            AntiVPN.GSON.toJson(addressData),
+            System.currentTimeMillis()
+        );
     }
 }

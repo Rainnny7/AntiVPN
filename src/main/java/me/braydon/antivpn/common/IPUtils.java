@@ -40,13 +40,13 @@ public final class IPUtils {
     @NonNull
     public static String getRealIp(@NonNull HttpServletRequest request) {
         String ip = request.getRemoteAddr();
-        log.debug("Remote IP: {}", ip); // Debugging
+        log.info("Remote IP: {}", ip); // Debugging
         for (String headerName : IP_HEADERS) {
             String header = request.getHeader(headerName);
             if (header == null) {
                 continue;
             }
-            log.debug("{} = {}", headerName, header); // Debugging
+            log.info("{} = {}", headerName, header); // Debugging
             if (!header.contains(",")) { // Handle single IP
                 ip = header;
                 break;
@@ -58,7 +58,7 @@ public final class IPUtils {
                 break;
             }
         }
-        log.debug("Remote IP: {}", ip); // Debugging
+        log.info("Remote IP: {}", ip); // Debugging
         return ip;
     }
     

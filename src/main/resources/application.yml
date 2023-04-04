@@ -10,7 +10,6 @@ auth:
 # Maxmind Configuration
 maxmind:
   license: "LICENSE_KEY"
-  databases: GeoLite2-ASN, GeoLite2-City # The databases to download
 
 # GitHub Configuration - Used to scrape a public PIA repository for their servers
 github:

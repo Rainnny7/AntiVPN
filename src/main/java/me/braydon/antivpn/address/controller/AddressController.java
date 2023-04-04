@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.address.AddressData;
 import me.braydon.antivpn.address.AddressService;
+import me.braydon.antivpn.address.BlacklistType;
 import me.braydon.antivpn.common.AuthUtils;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.common.MemoryFormatter;
@@ -13,7 +14,6 @@ import me.braydon.antivpn.metrics.MetricService;
 import me.braydon.antivpn.metrics.impl.RequestTracker;
 import me.braydon.antivpn.model.APIKey;
 import me.braydon.antivpn.provider.VPNServiceProvider;
-import me.braydon.antivpn.repository.redis.AddressCacheRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
@@ -42,11 +42,11 @@ public class AddressController {
     @NonNull private final JedisConnectionFactory jedisFactory;
     
     /**
-     * The address cache repository.
+     * The address service.
      *
-     * @see AddressCacheRepository for address cache repository
+     * @see AddressService for address service
      */
-    @NonNull private final AddressCacheRepository addressCacheRepository;
+    @NonNull private final AddressService addressService;
     
     /**
      * The metrics service instance to use.
@@ -63,9 +63,9 @@ public class AddressController {
     
     @Autowired
     public AddressController(@NonNull JedisConnectionFactory jedisFactory,
-                             @NonNull AddressCacheRepository addressCacheRepository, @NonNull MetricService metrics) {
+                             @NonNull AddressService addressService, @NonNull MetricService metrics) {
         this.jedisFactory = jedisFactory;
-        this.addressCacheRepository = addressCacheRepository;
+        this.addressService = addressService;
         this.metrics = metrics;
     }
     
@@ -76,14 +76,13 @@ public class AddressController {
      * </p>
      *
      * @return the json response
-     * @see AddressService#from for more
+     * @see AddressService#lookup for more
      */
     @GetMapping("/check")
     @ResponseBody
     public ResponseEntity<?> check(@RequestParam @NonNull String ip,
-                                   @RequestParam(required = false) Set<AddressService.AddressLookupData> data,
+                                   @RequestParam(required = false) Set<AddressService.LookupData> data,
                                    @RequestParam(required = false) boolean ignoreCache) {
-        metrics.getTracker(RequestTracker.class).submitLookup(); // Metrics
         if (data == null) { // Default the list
             data = new HashSet<>();
         }
@@ -91,7 +90,7 @@ public class AddressController {
         if (ignoreCache) { // Validate permissions to ignore the cache
             AuthUtils.validatePermissions(APIKey.Permission.IGNORE_ADDRESS_CACHE);
         }
-        return ResponseEntity.ok(AddressService.from(jedisFactory, addressCacheRepository, metrics, ip, data, ignoreCache));
+        return ResponseEntity.ok(addressService.lookup(ip, data, ignoreCache));
     }
     
     /**
@@ -108,8 +107,7 @@ public class AddressController {
         }
         metrics.getTracker(RequestTracker.class).submitLookup(); // Metrics
         String ip = IPUtils.getRealIp(request);
-        AddressData addressData = AddressService.from(jedisFactory, addressCacheRepository,
-            metrics, ip, Set.of(AddressService.AddressLookupData.values()), false);
+        AddressData addressData = addressService.lookup(ip, Set.of(AddressService.LookupData.values()), false);
         return ResponseEntity.ok(Map.of(
             "message", addressData.getRisk() > 0.3D ? "Yes, you're using a VPN" : "No, you're not using a VPN",
             "type", addressData.getIpType()
@@ -118,7 +116,7 @@ public class AddressController {
     
     @PostMapping("/blacklist")
     @ResponseBody
-    public ResponseEntity<?> blacklist(@RequestParam @NonNull String ip, @RequestParam @NonNull AddressService.BlacklistType type) {
+    public ResponseEntity<?> blacklist(@RequestParam @NonNull String ip, @RequestParam @NonNull BlacklistType type) {
         AuthUtils.validatePermissions(APIKey.Permission.BLACKLIST_MODIFY); // Validate permissions
         return ResponseEntity.ok("(un?)blacklist " + ip + " in type " + type);
     }

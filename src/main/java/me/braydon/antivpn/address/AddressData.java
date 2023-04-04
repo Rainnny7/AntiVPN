@@ -44,7 +44,7 @@ public class AddressData {
     /**
      * The blacklists this address is on.
      */
-    @NonNull private final Set<AddressService.BlacklistType> blacklists;
+    @NonNull private final Set<BlacklistType> blacklists;
     
     /**
      * The ASN data of this address.
@@ -78,9 +78,9 @@ public class AddressData {
      *
      * @param type the blacklist type
      * @return true if blacklisted, otherwise false
-     * @see AddressService.BlacklistType for type
+     * @see BlacklistType for type
      */
-    public boolean isOnBlacklist(@NonNull AddressService.BlacklistType type) {
+    public boolean isOnBlacklist(@NonNull BlacklistType type) {
         return blacklists.contains(type);
     }
     

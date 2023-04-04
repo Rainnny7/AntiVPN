@@ -1,12 +1,13 @@
 package me.braydon.antivpn.address;
 
-import com.maxmind.geoip2.exception.GeoIp2Exception;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.record.City;
 import com.maxmind.geoip2.record.Continent;
 import com.maxmind.geoip2.record.Country;
 import com.maxmind.geoip2.record.Location;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -15,21 +16,21 @@ import me.braydon.antivpn.cache.CachedAddressData;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.metrics.MetricService;
 import me.braydon.antivpn.metrics.impl.DatabaseTracker;
+import me.braydon.antivpn.metrics.impl.RequestTracker;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import me.braydon.antivpn.repository.redis.AddressCacheRepository;
 import me.braydon.antivpn.service.MaxmindService;
+import org.apache.commons.net.util.SubnetUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import java.io.IOException;
 import java.net.InetAddress;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 /**
  * @author Braydon
@@ -41,6 +42,36 @@ public final class AddressService {
      * The regex expression for validating domains.
      */
     private static final String DOMAIN_REGEX = "^((?!-))(xn--)?[a-z0-9][a-z0-9-_]{0,61}[a-z0-9]?\\.(xn--)?([a-z0-9\\-]{1,61}|[a-z0-9-]{1,30}\\.[a-z]{2,})$";
+    
+    /**
+     * Private subnets to disallow lookups for.
+     */
+    private static final String[] PRIVATE_SUBNETS = {
+        "0.0.0.0/8",
+        "10.0.0.0/8",
+        "100.64.0.0/10",
+        "127.0.0.0/8",
+        "169.254.0.0/16",
+        "172.16.0.0/12",
+        "192.0.0.0/24",
+        "192.0.0.0/29",
+        "192.0.0.8/32",
+        "192.0.0.9/32",
+        "192.0.0.10/32",
+        "192.0.0.170/32",
+        "192.0.0.171/32",
+        "192.0.2.0/24",
+        "192.31.196.0/24",
+        "192.52.193.0/24",
+        "192.88.99.0/24",
+        "192.168.0.0/16",
+        "192.175.48.0/24",
+        "198.18.0.0/15",
+        "198.51.100.0/24",
+        "203.0.113.0/24",
+        "240.0.0.0/4",
+        "255.255.255.255/32"
+    };
     
     /**
      * The blacklisted ASN numbers.
@@ -72,14 +103,31 @@ public final class AddressService {
     @NonNull private final JedisConnectionFactory jedisFactory;
     
     /**
+     * The metrics service instance to use.
+     *
+     * @see MetricService for metrics service
+     */
+    @NonNull private final MetricService metrics;
+    
+    /**
+     * The address cache repository.
+     *
+     * @see AddressCacheRepository for address cache repository
+     */
+    @NonNull private final AddressCacheRepository addressCacheRepository;
+    
+    /**
      * Timestamps to keep track of so
      * we can properly tick the providers.
      */
     private long lastIpPurge;
     
     @Autowired
-    public AddressService(@NonNull JedisConnectionFactory jedisFactory) {
+    public AddressService(@NonNull JedisConnectionFactory jedisFactory, @NonNull MetricService metrics,
+                          @NonNull AddressCacheRepository addressCacheRepository) {
         this.jedisFactory = jedisFactory;
+        this.metrics = metrics;
+        this.addressCacheRepository = addressCacheRepository;
     }
     
     /**
@@ -124,208 +172,196 @@ public final class AddressService {
     }
     
     /**
-     * Generate data for the given IP address.
+     * Lookup data for the given IP address.
      *
-     * @param jedisFactory the jedis factory instance
-     * @param rawIp        the ip
-     * @param lookupData   the optional types of data to lookup
-     * @param ignoreCache  whether we want to ignore the cache
-     * @return the generated data
-     * @see AddressLookupData the data type
-     * @see JedisConnectionFactory for jedis factory
+     * @param ip          the ip to lookup
+     * @param data        the data to lookup
+     * @param ignoreCache should we bypass the cache?
+     * @return the address data
+     * @see AddressData for address data
+     * @see LookupData for lookup data
      */
     @NonNull @SneakyThrows
-    public static AddressData from(@NonNull JedisConnectionFactory jedisFactory,
-                                   @NonNull AddressCacheRepository addressCacheRepository,
-                                   @NonNull MetricService metrics, @NonNull String rawIp,
-                                   Set<AddressService.AddressLookupData> lookupData, boolean ignoreCache) {
-        log.info("Attempting to lookup data for '{}'...", rawIp); // Log the IP lookup
-        boolean matchesDomain = rawIp.matches(DOMAIN_REGEX); // Whether the IP matches a domain
-        if (matchesDomain) { // Extract the IP from the domain
-            rawIp = InetAddress.getByName(rawIp).getHostAddress(); // Extract the IP
-            log.info("Extracted IP from domain: {}", rawIp); // Log the extracted IP
-        }
-        String ip = rawIp; // The IP to lookup
-        log.info("Looking up data for IP: {}", rawIp); // Log the IP lookup
-        
-        boolean lookupAsn = lookupData.contains(AddressLookupData.ASN); // Whether to lookup ASN data
-        boolean lookupGeographical = lookupData.contains(AddressLookupData.GEOGRAPHICAL); // Whether to lookup geographical data
-        
-        // Checking the cache if we're not ignoring it
-        if (!ignoreCache) {
-            long beforeCache = System.currentTimeMillis(); // Before the cache lookup started
-            try {
-                Optional<CachedAddressData> optionalCache = addressCacheRepository.findById(ip);
-                if (optionalCache.isPresent()) { // Return the cached data
-                    CachedAddressData cache = optionalCache.get(); // The cached address data
-                    AddressData addressData = AntiVPN.GSON.fromJson(cache.getJson(), AddressData.class);
-                    boolean hasAllData = cache.hasLookupData() && cache.getLookupData().containsAll(lookupData); // Whether the cache has all the data we need
-                    log.info("Found cached data for IP {} (Took {}ms){}",
-                        ip,
-                        System.currentTimeMillis() - beforeCache,
-                        hasAllData ? "" : ", but it's missing data, running a full lookup..."
-                    ); // Log that we found the cache
-                    
-                    if (hasAllData) { // Are we trying to lookup more data that we have cached?
-                        metrics.getTracker(DatabaseTracker.class).submitCacheHit(); // Metrics
-                        addressData.flagCached(cache.getTimestamp()); // Flag the cached data
-                        return addressData; // Return the cached data
-                    }
+    public AddressData lookup(@NonNull String ip, Set<LookupData> data, boolean ignoreCache) {
+        log.info("Looking up data for IP '{}'...", ip); // Logging
+        long started = System.currentTimeMillis(); // Just started
+        try {
+            if (IPUtils.getIpType(ip) == -1) { // IP is not v4 or v6
+                throw new IllegalArgumentException("Invalid IP address: " + ip);
+            }
+            // Prevent lookups of private IP ranges
+            for (String subnet : PRIVATE_SUBNETS) {
+                SubnetUtils.SubnetInfo subnetInfo = new SubnetUtils(subnet).getInfo();
+                if (subnetInfo.isInRange(ip)) {
+                    throw new IllegalArgumentException("Cannot lookup private IP ranges");
                 }
-            } finally {
-                metrics.getTracker(DatabaseTracker.class).submitResponseTime(
-                    DatabaseTracker.DatabaseType.REDIS, System.currentTimeMillis() - beforeCache); // Metrics
             }
-        }
-        metrics.getTracker(DatabaseTracker.class).submitCacheMiss(); // Metrics
-        
-        // Running a full lookup
-        InetAddress inetAddress = InetAddress.getByName(ip); // The inet address
-        if (inetAddress.isLoopbackAddress() || inetAddress.isSiteLocalAddress()) { // Cannot lookup loopback or local addresses
-            throw new IllegalArgumentException("Cannot lookup loopback or local addresses");
-        }
-        float risk = 0.0f; // The calculated risk score
-        List<Supplier<Float>> riskSuppliers = new ArrayList<>(); // The suppliers for calculating the risk score
-        
-        AtomicBoolean vpnProvider = new AtomicBoolean(); // Whether this address belongs to a VPN provider
-        Set<BlacklistType> blacklisted = new HashSet<>(); // The types of blacklists this address is on
-        
-        // Extra data to fetch
-        AtomicReference<AddressData.AsnData> asnData = new AtomicReference<>(null);
-        AtomicReference<AddressData.GeographicalData> geographicalData = new AtomicReference<>(null);
-        
-        // Check if the IP belongs to any provider
-        riskSuppliers.add(() -> {
-            long before = System.currentTimeMillis(); // The time before the lookup
-            float providerRisk = 0.0f; // The risk score for the provider
-            for (VPNServiceProvider provider : VPNServiceProvider.getRegistry()) {
-                if (!provider.hasIp(jedisFactory, ip, true)) { // Provider doesn't have this IP
-                    continue;
+            log.info("IP Range lookup took {}ms", System.currentTimeMillis() - started); // Debug
+            
+            InetAddress inetAddress = null;
+            
+            // Extract the IP from the domain
+            if (ip.matches(DOMAIN_REGEX)) {
+                String domain = ip;
+                inetAddress = InetAddress.getByName(domain); // Get the inet address
+                ip = inetAddress.getHostAddress(); // Get the IP address
+                log.info("Extracted IP ({}) from domain ({}), took {}ms", ip, domain, System.currentTimeMillis() - started); // Logging
+            }
+            // Handle the cache
+            if (!ignoreCache) {
+                long before = System.currentTimeMillis(); // Current timestamp for metrics
+                try { // Attempt to lookup from the cache
+                    Optional<CachedAddressData> optionalCache = addressCacheRepository.findById(ip);
+                    if (optionalCache.isPresent()) { // Return the cached data
+                        CachedAddressData cache = optionalCache.get(); // The cached address data
+                        AddressData addressData = AntiVPN.GSON.fromJson(cache.getJson(), AddressData.class);
+                        boolean hasAllData = cache.hasLookupData() && cache.getLookupData().containsAll(data); // Whether the cache has all the data we need
+                        
+                        // Log that we found the cache
+                        log.info("Found cached data for IP {} (Took {}ms){}",
+                            ip,
+                            System.currentTimeMillis() - before,
+                            hasAllData ? "" : ", but it's missing data, running a full lookup..."
+                        );
+                        
+                        // Returning the cached data if we have all the data we need
+                        if (hasAllData) {
+                            metrics.getTracker(DatabaseTracker.class).submitCacheHit(); // Cache hit
+                            addressData.flagCached(cache.getTimestamp()); // Flag the cached data
+                            return addressData; // Return the cached data
+                        }
+                    }
+                } finally {
+                    metrics.getTracker(DatabaseTracker.class).submitResponseTime(
+                        DatabaseTracker.DatabaseType.REDIS, System.currentTimeMillis() - before); // Time Redis
+                    log.info("Cache lookup took {}ms", System.currentTimeMillis() - before); // Debug
                 }
-                vpnProvider.set(true); // IP belongs to a provider
-                providerRisk += 0.6;
             }
-            log.info("VPN provider lookup complete in {}ms", System.currentTimeMillis() - before); // Log timings
-            return providerRisk;
-        });
-        
-        // Looking up the ASN of the IP if specified in the lookup data
-        if (lookupAsn) {
-            log.info("Looking up ASN of IP: {}", ip); // Log the ASN lookup
-            riskSuppliers.add(() -> {
-                long before = System.currentTimeMillis(); // The time before the lookup
-                AtomicReference<Float> asnRisk = new AtomicReference<>();
-                MaxmindService.getInstance().submitTask(databaseReader -> {
-                    try {
-                        AsnResponse asnResponse = databaseReader.asn(inetAddress);
-                        
-                        // Set the response
-                        asnData.set(new AddressData.AsnData(
-                            asnResponse.getAutonomousSystemNumber(),
-                            asnResponse.getAutonomousSystemOrganization(),
-                            asnResponse.getNetwork().toString()
-                        ));
-                        
-                        // Checking if the ASN number is blacklisted
-                        if (BLACKLISTED_ASN_NUMBERS.contains(asnData.get().getNumber())) {
-                            blacklisted.add(BlacklistType.ASN);
-                            asnRisk.set(0.4f);
-                        }
-                        log.info("ASN data lookup complete in {}ms", System.currentTimeMillis() - before); // Log timings
-                    } catch (IOException | GeoIp2Exception ex) {
-                        ex.printStackTrace();
-                    }
-                });
-                return asnRisk.get();
-            });
-        }
-        
-        // Looking up the geographical data of the IP if specified in the lookup data
-        if (lookupGeographical) {
-            log.info("Looking up geographical data of IP: {}", ip); // Log the geo lookup
-            riskSuppliers.add(() -> {
-                long before = System.currentTimeMillis(); // The time before the lookup
-                AtomicReference<Float> countryRisk = new AtomicReference<>();
-                MaxmindService.getInstance().submitTask(databaseReader -> {
-                    try {
-                        CityResponse cityResponse = databaseReader.city(inetAddress);
-                        Location location = cityResponse.getLocation(); // The location of the IP
-                        Continent continent = cityResponse.getContinent(); // The continent of the IP
-                        Country country = cityResponse.getCountry(); // The country of the IP
-                        City city = cityResponse.getCity(); // The city of the IP
-                        
-                        // Set the response
-                        geographicalData.set(new AddressData.GeographicalData(
-                            continent.getCode(),
-                            continent.getName(),
-                            country.getIsoCode(),
-                            country.getName(),
-                            country.isInEuropeanUnion(),
-                            city == null ? null : city.getName(), // How can this be null..?
-                            location.getLatitude(),
-                            location.getLongitude(),
-                            location.getTimeZone()
-                        ));
-                        
-                        // Checking if the country is blacklisted
-                        if (BLACKLISTED_COUNTRIES.contains(country.getName())) {
-                            blacklisted.add(BlacklistType.COUNTRY);
-                            countryRisk.set(0.4f);
-                        }
-                        log.info("Geographical data lookup complete in {}ms", System.currentTimeMillis() - before); // Log timings
-                    } catch (IOException | GeoIp2Exception ex) {
-                        ex.printStackTrace();
-                    }
-                });
-                return countryRisk.get();
-            });
-        }
-        
-        // Calculating the risk
-        long before = System.currentTimeMillis();
-        for (Supplier<Float> supplier : riskSuppliers) {
-            Float value = supplier.get();
-            if (value == null || (value.isNaN() || value.isInfinite())) {
-                continue;
+            if (inetAddress == null) { // Get the inet address if we don't have it already
+                inetAddress = InetAddress.getByName(ip);
             }
-            risk += value;
+            if (inetAddress.isLoopbackAddress()
+                    || inetAddress.isSiteLocalAddress()) { // Cannot lookup loopback or local addresses
+                throw new IllegalArgumentException("Cannot lookup loopback or local addresses");
+            }
+            metrics.getTracker(DatabaseTracker.class).submitCacheMiss(); // Cache missed
+            
+            boolean lookupAsn = data.contains(LookupData.ASN); // Lookup ASN data?
+            boolean lookupGeographical = data.contains(LookupData.GEOGRAPHICAL); // Lookup geo data?
+            log.info("Looking up data for IP (asn={}, geo={}): {}", lookupAsn, lookupGeographical, ip); // Logging
+            
+            // Data to return
+            boolean vpnProvider = false; // Does the IP belong to a VPN provider?
+            Set<BlacklistType> blacklists = new HashSet<>(); // Blacklists the IP is apart of
+            AddressData.AsnData asnData = null; // ASN data
+            AddressData.GeographicalData geographicalData = null; // Geographical data
+            
+            // Calculating the risk score based on weights
+            float risk = 0f;
+            
+            // Use the highest weight for IPs belonging to VPN providers
+            for (VPNServiceProvider serviceProvider : VPNServiceProvider.getRegistry()) {
+                if (serviceProvider.hasIp(jedisFactory, ip, true)) {
+                    log.info("IP belongs to VPN provider: {}", serviceProvider.getName()); // Logging
+                    vpnProvider = true;
+                    risk += 1f;
+                    break;
+                }
+            }
+            log.info("VPN provider lookup took {}ms", System.currentTimeMillis() - started); // Debug
+            
+            // Calculating the ASN risk score
+            if (lookupAsn) {
+                log.info("Looking up ASN data..."); // Logging
+                asnData = (AddressData.AsnData) LookupData.ASN.execute(inetAddress);
+                
+                // Checking the ASN blacklist
+                if (BLACKLISTED_ASN_NUMBERS.contains(asnData.getNumber())) {
+                    blacklists.add(BlacklistType.ASN);
+                    risk += 0.5f;
+                }
+                log.info("ASN lookup took {}ms", System.currentTimeMillis() - started); // Debug
+            }
+            // Calculating the GEO risk score
+            if (lookupGeographical) {
+                log.info("Looking up GEO data..."); // Logging
+                geographicalData = (AddressData.GeographicalData) LookupData.GEOGRAPHICAL.execute(inetAddress);
+                
+                // Checking the ASN blacklist
+                if (BLACKLISTED_COUNTRIES.contains(geographicalData.getCountry())) {
+                    blacklists.add(BlacklistType.COUNTRY);
+                    risk += 0.4f;
+                }
+                log.info("Geographical lookup took {}ms", System.currentTimeMillis() - started); // Debug
+            }
+            risk = Math.min(risk, 1.0f); // Limit the risk to 1.0
+            
+            // Building the address data
+            AddressData addressData = new AddressData(
+                ip, // The IP address
+                IPUtils.getIpType(ip), // Get the IP type
+                risk, // The risk score we calculated
+                vpnProvider, // Is the IP from a VPN provider?
+                blacklists, // The blacklists the IP may be apart of
+                asnData, // The ASN data of the IP
+                geographicalData // The geographical data of the IP
+            );
+            addressCacheRepository.save(CachedAddressData.asCache(addressData, data)); // Cache the response
+            return addressData;
+        } finally {
+            metrics.getTracker(RequestTracker.class).submitLookup(); // Metrics
+            log.info("Finished lookup for IP '{}', took {}ms", ip, System.currentTimeMillis() - started); // Logging
         }
-        risk = Math.min(risk, 1.0f); // Limit the risk to 1.0
-        log.info("Risk calculation complete in {}ms", System.currentTimeMillis() - before); // Log timings
-        
-        // Return the address data
-        AddressData addressData = new AddressData(
-            ip, // The IP address
-            IPUtils.getIpType(ip), // Get the IP type
-            risk, // The risk score we calculated
-            vpnProvider.get(), // Is the IP from a VPN provider?
-            blacklisted, // The blacklists the IP may be apart of
-            asnData.get(), // The ASN data of the IP
-            geographicalData.get() // The geographical data of the IP
-        );
-        // Cache the address data
-        addressCacheRepository.save(new CachedAddressData(
-            ip,
-            lookupData,
-            AntiVPN.GSON.toJson(addressData),
-            System.currentTimeMillis()
-        ));
-        return addressData;
     }
     
     /**
-     * The additional data you can optionally lookup.
+     * Different types of data to
+     * lookup for an IP address.
      */
-    public enum AddressLookupData {
-        ASN,
-        GEOGRAPHICAL
-    }
-    
-    /**
-     * The type of blacklists.
-     */
-    public enum BlacklistType {
-        ASN,
-        COUNTRY
+    @AllArgsConstructor @Getter
+    public enum LookupData {
+        ASN(MaxmindService.MaxmindDatabase.ASN) {
+            @Override @NonNull @SneakyThrows
+            public AddressData.AsnData execute(@NonNull InetAddress inetAddress) {
+                AsnResponse response = getMaxmindDatabase().getDatabaseReader().asn(inetAddress);
+                return new AddressData.AsnData(
+                    response.getAutonomousSystemNumber(),
+                    response.getAutonomousSystemOrganization(),
+                    response.getNetwork().toString()
+                );
+            }
+        },
+        GEOGRAPHICAL(MaxmindService.MaxmindDatabase.CITY) {
+            @Override @NonNull @SneakyThrows
+            public AddressData.GeographicalData execute(@NonNull InetAddress inetAddress) {
+                CityResponse cityResponse = getMaxmindDatabase().getDatabaseReader().city(inetAddress);
+                Location location = cityResponse.getLocation(); // The location from the response
+                Continent continent = cityResponse.getContinent(); // The continent from the response
+                Country country = cityResponse.getCountry(); // The country from the response
+                City city = cityResponse.getCity(); // The city from the response
+                
+                return new AddressData.GeographicalData(
+                    continent.getCode(),
+                    continent.getName(),
+                    country.getIsoCode(),
+                    country.getName(),
+                    country.isInEuropeanUnion(),
+                    city == null ? null : city.getName(), // How can this be null..?
+                    location.getLatitude(),
+                    location.getLongitude(),
+                    location.getTimeZone()
+                );
+            }
+        };
+        
+        /**
+         * The {@link MaxmindService.MaxmindDatabase} to use for this lookup data.
+         */
+        @NonNull private final MaxmindService.MaxmindDatabase maxmindDatabase;
+        
+        @NonNull
+        public Object execute(@NonNull InetAddress inetAddress) {
+            throw new UnsupportedOperationException("Not implemented");
+        }
     }
 }
