@@ -5,7 +5,6 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.address.AddressService;
-import me.braydon.antivpn.blacklist.BlacklistType;
 import me.braydon.antivpn.common.AuthUtils;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.common.MemoryFormatter;
@@ -112,13 +111,6 @@ public class AddressController {
             "message", addressData.getRisk() > 0.3D ? "Yes, you're using a VPN" : "No, you're not using a VPN",
             "type", addressData.getIpType()
         ));
-    }
-    
-    @PostMapping("/blacklist")
-    @ResponseBody
-    public ResponseEntity<?> blacklist(@RequestParam @NonNull String ip, @RequestParam @NonNull BlacklistType type) {
-        AuthUtils.validatePermissions(APIKey.Permission.BLACKLIST_MODIFY); // Validate permissions
-        return ResponseEntity.ok("(un?)blacklist " + ip + " in type " + type);
     }
     
     /**

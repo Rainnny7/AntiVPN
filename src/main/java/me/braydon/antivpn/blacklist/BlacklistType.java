@@ -1,4 +1,4 @@
-package me.braydon.antivpn.address;
+package me.braydon.antivpn.blacklist;
 
 /**
  * The type of blacklists.
