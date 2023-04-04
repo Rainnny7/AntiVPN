@@ -124,9 +124,4 @@ public final class MetricService {
         }
         throw new IllegalArgumentException("No tracker found for " + clazz.getSimpleName()); // No tracker found
     }
-    
-    /**
-     * amount of ips collected per scrape (show avg on grafana)
-     * number of blacklist entries per blacklist type
-     */
 }
