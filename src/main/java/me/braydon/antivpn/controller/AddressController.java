@@ -14,6 +14,7 @@ import me.braydon.antivpn.provider.VPNServiceProvider;
 import me.braydon.antivpn.repository.redis.AddressCacheRepository;
 import me.braydon.antivpn.service.AddressService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -53,6 +54,12 @@ public class AddressController {
      */
     @NonNull private final MetricService metrics;
     
+    /**
+     * Should we enable the /amiusingavpn route?
+     */
+    @Value("${amiusingavpn}")
+    private boolean enableAmIUsingAVPN;
+    
     @Autowired
     public AddressController(@NonNull JedisConnectionFactory jedisFactory,
                              @NonNull AddressCacheRepository addressCacheRepository, @NonNull MetricService metrics) {
@@ -87,8 +94,7 @@ public class AddressController {
     }
     
     /**
-     * A route only enabled in development to
-     * check if the requesting IP is using a VPN.
+     * Check if the requesting IP is using a VPN.
      *
      * @param request the request
      * @return the json response
@@ -96,7 +102,7 @@ public class AddressController {
     @GetMapping("/amiusingavpn")
     @ResponseBody
     public ResponseEntity<?> amiusingavpn(@NonNull HttpServletRequest request) {
-        if (!AntiVPN.isDevelopment()) { // Disallow in production
+        if (!enableAmIUsingAVPN) { // Disallow in production
             return ResponseEntity.notFound().build();
         }
         metrics.getTracker(RequestTracker.class).submitLookup(); // Metrics

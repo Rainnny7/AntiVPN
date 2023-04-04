@@ -55,4 +55,5 @@ spring:
 
 threads: 6 # The amount of threads the thread pool should use when ticking
 dev: true # Are we in a development environment?
+amiusingavpn: false # Enable this route?
 debug: false # Enable debug mode
