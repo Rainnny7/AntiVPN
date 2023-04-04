@@ -52,7 +52,7 @@ public class AddressData {
      * Only available if the lookup request specified it.
      * </p>
      *
-     * @see AddressService.AddressData.AsnData for data
+     * @see AddressData.AsnData for data
      */
     private final AsnData asn;
     
@@ -62,7 +62,7 @@ public class AddressData {
      * Only available if the lookup request specified it.
      * </p>
      *
-     * @see AddressService.AddressData.GeographicalData for data
+     * @see AddressData.GeographicalData for data
      */
     private final GeographicalData geographical;
     
