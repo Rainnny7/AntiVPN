@@ -217,9 +217,9 @@ public final class APIKey {
         IGNORE_ADDRESS_CACHE,
         
         /**
-         * Allows modification of blacklists.
+         * Allows management of blacklists.
          */
-        BLACKLIST_MODIFY,
+        MANAGE_BLACKLIST,
         
         /**
          * Allows viewing statistics.
