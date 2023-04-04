@@ -68,9 +68,8 @@ public final class IPUtils {
      * @param input the input
      * @return the IP type
      */
-    @NonNull
-    public static String getIpType(@NonNull String input) {
-        return isIpV4(input) ? "IPv4" : isIpV6(input) ? "IPv6" : "Unknown";
+    public static int getIpType(@NonNull String input) {
+        return isIpV4(input) ? 4 : isIpV6(input) ? 6 : -1;
     }
     
     /**

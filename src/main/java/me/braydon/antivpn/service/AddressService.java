@@ -141,7 +141,7 @@ public final class AddressService {
         /**
          * The type of this IP address.
          */
-        @NonNull private final String ipType;
+        private final int ipType;
         
         /**
          * The risk score of this IP address.
@@ -216,8 +216,7 @@ public final class AddressService {
          * @see AddressLookupData the data type
          * @see JedisConnectionFactory for jedis factory
          */
-        @NonNull
-        @SneakyThrows
+        @NonNull @SneakyThrows
         public static AddressData from(@NonNull JedisConnectionFactory jedisFactory,
                                        @NonNull AddressCacheRepository addressCacheRepository,
                                        @NonNull MetricService metrics, @NonNull String rawIp,
