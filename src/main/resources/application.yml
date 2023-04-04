@@ -52,6 +52,9 @@ spring:
     location: "classpath:banner.txt"
   autoconfigure:
     exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+  mvc:
+    application:
+      ipv4only: true
 
 threads: 6 # The amount of threads the thread pool should use when ticking
 dev: true # Are we in a development environment?

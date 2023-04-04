@@ -20,6 +20,11 @@ public final class IPUtils {
      */
     public static final String ADDRESS_REGEX = "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$";
     
+    private static final String[] IP_HEADERS = new String[] {
+        "CF-Connecting-IP",
+        "X-Forwarded-For"
+    };
+    
     /**
      * Get the real IP from the given request.
      *
@@ -29,10 +34,28 @@ public final class IPUtils {
     @NonNull
     public static String getRealIp(@NonNull HttpServletRequest request) {
         String ip = request.getRemoteAddr();
-        String cfAddress = request.getHeader("CF-Connecting-IP");
-        if (cfAddress != null) { // Use the CloudFlare ip if present in the request
-            ip = cfAddress;
+        System.out.println("Remote IP: " + ip);
+        for (String headerName : IP_HEADERS) {
+            String header = request.getHeader(headerName);
+            if (header == null) {
+                continue;
+            }
+            System.out.println(headerName + " = " + header);
+            if (!header.contains(",")) { // Handle single IP
+                if (isIpV4(header)) {
+                    ip = header;
+                    break;
+                }
+            }
+            String[] ips = header.split(",");
+            for (String ipHeader : ips) {
+                if (isIpV4(ipHeader)) {
+                    ip = ipHeader;
+                    break;
+                }
+            }
         }
+        System.out.println("Real IP: " + ip);
         return ip;
     }
     

@@ -109,7 +109,10 @@ public class AddressController {
         String ip = IPUtils.getRealIp(request);
         AddressService.AddressData addressData = AddressService.AddressData.from(jedisFactory, addressCacheRepository,
             metrics, ip, Set.of(AddressService.AddressLookupData.values()), false);
-        return ResponseEntity.ok(Map.of("status", addressData.getRisk() > 0.3D ? "Yes, you're using a VPN" : "No, you're not using a VPN"));
+        return ResponseEntity.ok(Map.of(
+            "status", addressData.getRisk() > 0.3D ? "Yes, you're using a VPN" : "No, you're not using a VPN",
+            "type", IPUtils.isIpV4(ip) ? "IPv4" : "IPv6"
+        ));
     }
     
     @PostMapping("/blacklist")
