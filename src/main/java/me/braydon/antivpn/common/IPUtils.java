@@ -2,6 +2,7 @@ package me.braydon.antivpn.common;
 
 import lombok.NonNull;
 import lombok.experimental.UtilityClass;
+import lombok.extern.slf4j.Slf4j;
 import org.xbill.DNS.Lookup;
 import org.xbill.DNS.Record;
 import org.xbill.DNS.TextParseException;
@@ -13,12 +14,17 @@ import java.util.function.Consumer;
 /**
  * @author Braydon
  */
-@UtilityClass
+@UtilityClass @Slf4j(topic = "IP Utils")
 public final class IPUtils {
     /**
      * The regex expression for validating IPv4 addresses.
      */
-    public static final String ADDRESS_REGEX = "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$";
+    public static final String IPV4_REGEX = "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$";
+    
+    /**
+     * The regex expression for validating IPv6 addresses.
+     */
+    public static final String IPV6_REGEX = "^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^(([0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4})?::(([0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4})?$";
     
     private static final String[] IP_HEADERS = new String[] {
         "CF-Connecting-IP",
@@ -34,29 +40,37 @@ public final class IPUtils {
     @NonNull
     public static String getRealIp(@NonNull HttpServletRequest request) {
         String ip = request.getRemoteAddr();
-        System.out.println("Remote IP: " + ip);
+        log.debug("Remote IP: {}", ip); // Debugging
         for (String headerName : IP_HEADERS) {
             String header = request.getHeader(headerName);
             if (header == null) {
                 continue;
             }
-            System.out.println(headerName + " = " + header);
+            log.debug("{} = {}", headerName, header); // Debugging
             if (!header.contains(",")) { // Handle single IP
-                if (isIpV4(header)) {
-                    ip = header;
-                    break;
-                }
+                ip = header;
+                break;
             }
+            // Handle multiple IPs
             String[] ips = header.split(",");
             for (String ipHeader : ips) {
-                if (isIpV4(ipHeader)) {
-                    ip = ipHeader;
-                    break;
-                }
+                ip = ipHeader;
+                break;
             }
         }
-        System.out.println("Real IP: " + ip);
+        log.debug("Remote IP: {}", ip); // Debugging
         return ip;
+    }
+    
+    /**
+     * Get the IP type of the given input.
+     *
+     * @param input the input
+     * @return the IP type
+     */
+    @NonNull
+    public static String getIpType(@NonNull String input) {
+        return isIpV4(input) ? "IPv4" : isIpV6(input) ? "IPv6" : "Unknown";
     }
     
     /**
@@ -67,7 +81,18 @@ public final class IPUtils {
      * @return true if IPv4, otherwise false
      */
     public static boolean isIpV4(@NonNull String input) {
-        return input.matches(ADDRESS_REGEX);
+        return input.matches(IPV4_REGEX);
+    }
+    
+    /**
+     * Check if the given input is
+     * a valid IPv6 address.
+     *
+     * @param input the input
+     * @return true if IPv6, otherwise false
+     */
+    public static boolean isIpV6(@NonNull String input) {
+        return input.matches(IPV6_REGEX);
     }
     
     /**

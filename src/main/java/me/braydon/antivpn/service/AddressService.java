@@ -139,6 +139,11 @@ public final class AddressService {
         @Id @EqualsAndHashCode.Include @NonNull private final String ip;
         
         /**
+         * The type of this IP address.
+         */
+        @NonNull private final String ipType;
+        
+        /**
          * The risk score of this IP address.
          */
         private final float risk;
@@ -218,10 +223,7 @@ public final class AddressService {
                                        @NonNull MetricService metrics, @NonNull String rawIp,
                                        Set<AddressService.AddressLookupData> lookupData, boolean ignoreCache) {
             log.info("Attempting to lookup data for '{}'...", rawIp); // Log the IP lookup
-            boolean matchesDomain = rawIp.matches(DOMAIN_REGEX);
-            if (!IPUtils.isIpV4(rawIp) && !matchesDomain) { // Provided IP is not a valid IPv4 address or domain
-                throw new IllegalArgumentException("Invalid IP address");
-            }
+            boolean matchesDomain = rawIp.matches(DOMAIN_REGEX); // Whether the IP matches a domain
             if (matchesDomain) { // Extract the IP from the domain
                 rawIp = InetAddress.getByName(rawIp).getHostAddress(); // Extract the IP
                 log.info("Extracted IP from domain: {}", rawIp); // Log the extracted IP
@@ -377,6 +379,7 @@ public final class AddressService {
             // Return the address data
             AddressData addressData = new AddressData(
                 ip, // The IP address
+                IPUtils.getIpType(ip), // Get the IP type
                 risk, // The risk score we calculated
                 vpnProvider.get(), // Is the IP from a VPN provider?
                 blacklisted, // The blacklists the IP may be apart of

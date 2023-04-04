@@ -111,7 +111,7 @@ public class AddressController {
             metrics, ip, Set.of(AddressService.AddressLookupData.values()), false);
         return ResponseEntity.ok(Map.of(
             "status", addressData.getRisk() > 0.3D ? "Yes, you're using a VPN" : "No, you're not using a VPN",
-            "type", IPUtils.isIpV4(ip) ? "IPv4" : "IPv6"
+            "type", addressData.getIpType()
         ));
     }
     
