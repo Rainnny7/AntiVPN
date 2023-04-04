@@ -5,7 +5,6 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.AuthUtils;
-import me.braydon.antivpn.common.ETagUtils;
 import me.braydon.antivpn.common.MemoryFormatter;
 import me.braydon.antivpn.metrics.MetricService;
 import me.braydon.antivpn.metrics.impl.RequestTracker;
@@ -82,8 +81,7 @@ public class AddressController {
         if (ignoreCache) { // Validate permissions to ignore the cache
             AuthUtils.validatePermissions(APIKey.Permission.IGNORE_ADDRESS_CACHE);
         }
-        return ETagUtils.generateFor(ResponseEntity.ok(),
-            AddressService.AddressData.from(jedisFactory, addressCacheRepository, metrics, ip, data, ignoreCache));
+        return ResponseEntity.ok(AddressService.AddressData.from(jedisFactory, addressCacheRepository, metrics, ip, data, ignoreCache));
     }
     
     @PostMapping("/blacklist")
