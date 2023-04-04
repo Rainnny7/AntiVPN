@@ -5,6 +5,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.AuthUtils;
+import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.common.MemoryFormatter;
 import me.braydon.antivpn.metrics.MetricService;
 import me.braydon.antivpn.metrics.impl.RequestTracker;
@@ -18,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import java.lang.management.ManagementFactory;
 import java.util.HashSet;
 import java.util.Map;
@@ -82,6 +84,26 @@ public class AddressController {
             AuthUtils.validatePermissions(APIKey.Permission.IGNORE_ADDRESS_CACHE);
         }
         return ResponseEntity.ok(AddressService.AddressData.from(jedisFactory, addressCacheRepository, metrics, ip, data, ignoreCache));
+    }
+    
+    /**
+     * A route only enabled in development to
+     * check if the requesting IP is using a VPN.
+     *
+     * @param request the request
+     * @return the json response
+     */
+    @GetMapping("/amiusingavpn")
+    @ResponseBody
+    public ResponseEntity<?> amiusingavpn(@NonNull HttpServletRequest request) {
+        if (!AntiVPN.isDevelopment()) { // Disallow in production
+            return ResponseEntity.notFound().build();
+        }
+        metrics.getTracker(RequestTracker.class).submitLookup(); // Metrics
+        String ip = IPUtils.getRealIp(request);
+        AddressService.AddressData addressData = AddressService.AddressData.from(jedisFactory, addressCacheRepository,
+            metrics, ip, Set.of(AddressService.AddressLookupData.values()), false);
+        return ResponseEntity.ok(addressData.getRisk() > 0.3D ? "Yes, you're using a VPN" : "No, you're not using a VPN");
     }
     
     @PostMapping("/blacklist")

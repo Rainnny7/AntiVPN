@@ -130,7 +130,10 @@ public class WebSecurityConfig {
         }
         http.csrf().disable() // Disable CSRF
             .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS) // No sessions
-            .and().authorizeRequests().antMatchers("/error").permitAll() // Permit access to /error
+            .and().authorizeRequests().antMatchers( // Permit access to some routes
+                "/error",
+                "/amiusingavpn"
+            ).permitAll()
             .and() // Require authentication keys for all other routes
             .addFilter(filter)
             .authorizeRequests()
