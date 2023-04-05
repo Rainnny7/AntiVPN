@@ -131,7 +131,7 @@ public class AddressController {
      */
     @GetMapping("/stats")
     @ResponseBody
-    public ResponseEntity<?> check() {
+    public ResponseEntity<?> stats() {
         AuthUtils.validatePermissions(APIKey.Permission.VIEW_STATS); // Validate permissions
         Runtime runtime = Runtime.getRuntime(); // The current runtime environment
         long totalMemory = runtime.totalMemory();
