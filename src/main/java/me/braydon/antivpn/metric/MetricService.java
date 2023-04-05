@@ -1,4 +1,4 @@
-package me.braydon.antivpn.metrics;
+package me.braydon.antivpn.metric;
 
 import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.InfluxDBClientFactory;
@@ -6,15 +6,16 @@ import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
 import lombok.NonNull;
 import me.braydon.antivpn.AntiVPN;
-import me.braydon.antivpn.metrics.impl.DatabaseTracker;
-import me.braydon.antivpn.metrics.impl.ProviderTracker;
-import me.braydon.antivpn.metrics.impl.RequestTracker;
+import me.braydon.antivpn.metric.impl.DatabaseTracker;
+import me.braydon.antivpn.metric.impl.ProviderTracker;
+import me.braydon.antivpn.metric.impl.RequestTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -54,7 +55,14 @@ public final class MetricService {
     /**
      * The registered trackers.
      */
-    private final Set<MetricTracker> trackers = Collections.synchronizedSet(new HashSet<>());
+    @NonNull private final Set<MetricTracker> trackers = Collections.synchronizedSet(new HashSet<>());
+    
+    /**
+     * The InfluxDB client to use.
+     *
+     * @see InfluxDBClient for client
+     */
+    private InfluxDBClient client;
     
     /**
      * The unix time of the last metric log.
@@ -72,41 +80,51 @@ public final class MetricService {
         trackers.add(new DatabaseTracker()); // Database tracking
         trackers.add(new RequestTracker()); // Request tracking
         
+        client = InfluxDBClientFactory.create(url, token.toCharArray(), org, bucket);
+        
         // Creating a new thread to tick trackers at their respective intervals
         new Thread(() -> {
             while (true) {
-                List<Point> points = new ArrayList<>(); // The points to write
-                for (MetricTracker tracker : trackers) {
-                    // Can't track just yet
-                    if ((System.currentTimeMillis() - tracker.getLastExecution()) < tracker.getInterval()) {
-                        continue;
+                try {
+                    List<Point> points = new ArrayList<>(); // The points to write
+                    for (MetricTracker tracker : trackers) {
+                        // Can't track just yet
+                        if ((System.currentTimeMillis() - tracker.getLastExecution()) < tracker.getInterval()) {
+                            continue;
+                        }
+                        try {
+                            tracker.track(points); // The points to write
+                            tracker.setLastExecution(System.currentTimeMillis()); // Just executed the tracker
+                        } catch (Exception ex) {
+                            log.error("An error occurred while tracking metrics", ex);
+                        }
                     }
-                    try {
-                        tracker.track(points); // The points to write
-                        tracker.setLastExecution(System.currentTimeMillis()); // Just executed the tracker
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
-                    }
-                }
-                if (!points.isEmpty()) { // We have things to write
-                    points.add(Point.measurement("pointsPerSecond")
-                                   .addField("value", points.size())
-                                   .time(Instant.now().toEpochMilli(), WritePrecision.MS)); // PPS metric
-                    
-                    // Tagging all points with the current environment
-                    for (Point point : points) {
-                        point.addTag("environment", AntiVPN.isDevelopment() ? "dev" : "prod");
-                    }
-                    
-                    // Writing to Influx
-                    try (InfluxDBClient client = InfluxDBClientFactory.create(url, token.toCharArray(), org, bucket)) {
+                    if (!points.isEmpty()) { // We have things to write
+                        points.add(Point.measurement("pointsPerSecond")
+                                       .addField("value", points.size())
+                                       .time(Instant.now().toEpochMilli(), WritePrecision.MS)); // PPS metric
+                        
+                        // Tagging all points with the current environment
+                        for (Point point : points) {
+                            point.addTag("environment", AntiVPN.isDevelopment() ? "dev" : "prod");
+                        }
+                        
+                        // Writing to Influx
+                        long before = System.currentTimeMillis(); // Before we wrote to Influx
                         client.getWriteApiBlocking().writePoints(points);
+                        if ((System.currentTimeMillis() - lastLog) >= TimeUnit.SECONDS.toMillis(10L)) { // Should we log?
+                            lastLog = System.currentTimeMillis(); // Last logged now
+                            
+                            // Log the amount of points written
+                            log.info("Wrote {} point(s) to InfluxDB in {}ms",
+                                points.size(),
+                                System.currentTimeMillis() - before
+                            );
+                        }
+                        points.clear(); // Clear the points from memory after we're done submitting them
                     }
-                    if ((System.currentTimeMillis() - lastLog) >= TimeUnit.SECONDS.toMillis(10L)) { // Should we log?
-                        lastLog = System.currentTimeMillis(); // Last logged now
-                        log.info("Wrote {} points to InfluxDB", points.size()); // Log the amount of points written
-                    }
-                    points.clear(); // Clear the points from memory after we're done submitting them
+                } catch (Exception ex) {
+                    ex.printStackTrace();
                 }
                 try {
                     Thread.sleep(1000L);
@@ -115,6 +133,11 @@ public final class MetricService {
                 }
             }
         }, "Metric Tracker").start();
+    }
+    
+    @PreDestroy
+    public void destroy() {
+        client.close(); // Close the client
     }
     
     /**

@@ -1,4 +1,4 @@
-package me.braydon.antivpn.metrics;
+package me.braydon.antivpn.metric;
 
 import com.influxdb.client.write.Point;
 import lombok.*;

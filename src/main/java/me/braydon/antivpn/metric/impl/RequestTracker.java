@@ -1,9 +1,9 @@
-package me.braydon.antivpn.metrics.impl;
+package me.braydon.antivpn.metric.impl;
 
 import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
 import lombok.NonNull;
-import me.braydon.antivpn.metrics.MetricTracker;
+import me.braydon.antivpn.metric.MetricTracker;
 
 import java.time.Instant;
 import java.util.List;
@@ -41,12 +41,8 @@ public final class RequestTracker extends MetricTracker {
                                                                           .addTag("type", tag)
                                                                           .addField("value", value)
                                                                           .time(Instant.now().toEpochMilli(), WritePrecision.MS);
-        if (currentRequests > 0) { // If there are any requests
-            chain.add(getPoint.apply("NORMAL", currentRequests));
-        }
-        if (lookups > 0) { // If there are any lookup requests
-            chain.add(getPoint.apply("LOOKUPS", lookups));
-        }
+        chain.add(getPoint.apply("NORMAL", currentRequests)); // All requests
+        chain.add(getPoint.apply("LOOKUPS", lookups)); // Lookup requests
         currentRequests = lookups = 0; // Clear requests
     }
     

@@ -1,13 +1,12 @@
-package me.braydon.antivpn.metrics.impl;
+package me.braydon.antivpn.metric.impl;
 
 import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
 import lombok.NonNull;
-import me.braydon.antivpn.metrics.MetricTracker;
+import me.braydon.antivpn.metric.MetricTracker;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -37,16 +36,19 @@ public final class DatabaseTracker extends MetricTracker {
     @Override
     public void track(@NonNull List<Point> chain) {
         // Response times
-        for (Map.Entry<DatabaseType, CopyOnWriteArrayList<Long>> entry : responseTimes.entrySet()) { // Iterate through the response times
-            List<Long> responseTimes = entry.getValue();
-            int responseCount = responseTimes.size();
+        for (DatabaseType databaseType : DatabaseType.values()) {
+            List<Long> responseTimes = this.responseTimes.get(databaseType);
+            int responseCount = 0;
             long totalResponseTime = 0L;
-            for (long responseTime : responseTimes) { // Iterate through the response times for this database
-                totalResponseTime += responseTime;
+            if (responseTimes != null) { // We have response times for this database type
+                responseCount = responseTimes.size();
+                for (long responseTime : responseTimes) { // Iterate through the response times for this database
+                    totalResponseTime += responseTime;
+                }
             }
-            long averageResponseTime = totalResponseTime / responseCount;
+            long averageResponseTime = responseCount > 0L ? totalResponseTime / responseCount : 0L;
             chain.add(Point.measurement("databaseResponseTimes")
-                          .addTag("type", entry.getKey().name())
+                          .addTag("type", databaseType.name())
                           .addField("value", averageResponseTime));
         }
         responseTimes.clear(); // Clear the response times
@@ -56,12 +58,8 @@ public final class DatabaseTracker extends MetricTracker {
                                                                                .addTag("type", tag)
                                                                                .addField("value", value)
                                                                                .time(Instant.now().toEpochMilli(), WritePrecision.MS);
-        if (cacheHits > 0) { // If there are any cache hits
-            chain.add(getCachePoint.apply("HIT", cacheHits));
-        }
-        if (cacheMisses > 0) { // If there are any cache misses
-            chain.add(getCachePoint.apply("MISS", cacheMisses));
-        }
+        chain.add(getCachePoint.apply("HIT", cacheHits));
+        chain.add(getCachePoint.apply("MISS", cacheMisses));
         cacheHits = cacheMisses = 0; // Clear cache stats
     }
     

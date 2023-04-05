@@ -1,9 +1,9 @@
-package me.braydon.antivpn.metrics.impl;
+package me.braydon.antivpn.metric.impl;
 
 import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
 import lombok.NonNull;
-import me.braydon.antivpn.metrics.MetricTracker;
+import me.braydon.antivpn.metric.MetricTracker;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 
 import java.time.Instant;
