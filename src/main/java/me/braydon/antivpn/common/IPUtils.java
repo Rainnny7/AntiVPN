@@ -1,12 +1,11 @@
 package me.braydon.antivpn.common;
 
 import lombok.NonNull;
+import lombok.SneakyThrows;
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
-import org.xbill.DNS.Lookup;
 import org.xbill.DNS.Record;
-import org.xbill.DNS.TextParseException;
-import org.xbill.DNS.Type;
+import org.xbill.DNS.*;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.function.Consumer;
@@ -101,13 +100,14 @@ public final class IPUtils {
      * @param dns      the dns
      * @param callback the callback which supplies the target
      */
+    @SneakyThrows
     public static void getIpFromDns(@NonNull String dns, @NonNull Consumer<String> callback) {
-        Record[] records;
         try {
             Lookup lookup = new Lookup(dns, Type.A);
-            records = lookup.run();
+            lookup.setResolver(new SimpleResolver("1.1.1.1"));
+            Record[] records = lookup.run();
             if (records == null) { // Error when retrieving DNS records
-                throw new NullPointerException(String.format("Could not retrieve DNS records for '%s'", dns));
+                throw new NullPointerException("DNS A records are null for " + dns);
             }
             for (Record record : records) {
                 String value = record.rdataToString(); // The value of the record

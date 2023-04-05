@@ -2,7 +2,7 @@ package me.braydon.antivpn.provider.impl;
 
 import lombok.NonNull;
 import me.braydon.antivpn.AntiVPN;
-import me.braydon.antivpn.metrics.MetricService;
+import me.braydon.antivpn.metric.MetricService;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;

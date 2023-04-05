@@ -17,9 +17,9 @@ import me.braydon.antivpn.blacklist.repository.BlacklistRepository;
 import me.braydon.antivpn.cache.AddressCacheRepository;
 import me.braydon.antivpn.cache.CachedAddressData;
 import me.braydon.antivpn.common.IPUtils;
-import me.braydon.antivpn.metrics.MetricService;
-import me.braydon.antivpn.metrics.impl.DatabaseTracker;
-import me.braydon.antivpn.metrics.impl.RequestTracker;
+import me.braydon.antivpn.metric.MetricService;
+import me.braydon.antivpn.metric.impl.DatabaseTracker;
+import me.braydon.antivpn.metric.impl.RequestTracker;
 import me.braydon.antivpn.model.AddressData;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import me.braydon.antivpn.service.MaxmindService;
@@ -229,8 +229,8 @@ public final class AddressService {
             if (inetAddress == null) { // Get the inet address if we don't have it already
                 inetAddress = InetAddress.getByName(ip);
             }
-            if (inetAddress.isLoopbackAddress()
-                    || inetAddress.isSiteLocalAddress()) { // Cannot lookup loopback or local addresses
+            // Cannot lookup loopback or local addresses
+            if (inetAddress.isLoopbackAddress() || inetAddress.isSiteLocalAddress()) {
                 throw new IllegalArgumentException("Cannot lookup loopback or local addresses");
             }
             metrics.getTracker(DatabaseTracker.class).submitCacheMiss(); // Cache missed
@@ -259,7 +259,7 @@ public final class AddressService {
             }
             log.info("VPN provider lookup took {}ms", System.currentTimeMillis() - started); // Debug
             
-            // Calculating the ASN risk score
+            // Calculating the ASN weight
             if (lookupAsn) {
                 log.info("Looking up ASN data..."); // Logging
                 asnData = (AddressData.AsnData) LookupData.ASN.execute(inetAddress);
@@ -272,7 +272,7 @@ public final class AddressService {
                 }
                 log.info("ASN lookup took {}ms", System.currentTimeMillis() - started); // Debug
             }
-            // Calculating the GEO risk score
+            // Calculating the GEO weight
             if (lookupGeographical) {
                 log.info("Looking up GEO data..."); // Logging
                 geographicalData = (AddressData.GeographicalData) LookupData.GEOGRAPHICAL.execute(inetAddress);
