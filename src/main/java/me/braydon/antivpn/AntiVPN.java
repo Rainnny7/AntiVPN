@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import javax.annotation.PostConstruct;
 import java.io.File;
@@ -25,9 +26,11 @@ import java.util.concurrent.Executors;
 
 @SpringBootApplication
 @Slf4j(topic = "AntiVPN")
+@EnableWebMvc
 public class AntiVPN {
     public static final Gson GSON = new GsonBuilder()
                                         .serializeNulls()
+                                        .setDateFormat("MM-dd-yyyy")
                                         .create();
     public static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
                                                      .followRedirects(HttpClient.Redirect.ALWAYS)

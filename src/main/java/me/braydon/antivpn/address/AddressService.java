@@ -17,6 +17,7 @@ import me.braydon.antivpn.blacklist.repository.BlacklistRepository;
 import me.braydon.antivpn.cache.AddressCacheRepository;
 import me.braydon.antivpn.cache.CachedAddressData;
 import me.braydon.antivpn.common.IPUtils;
+import me.braydon.antivpn.exception.impl.APIException;
 import me.braydon.antivpn.metric.MetricService;
 import me.braydon.antivpn.metric.impl.DatabaseTracker;
 import me.braydon.antivpn.metric.impl.RequestTracker;
@@ -26,6 +27,7 @@ import me.braydon.antivpn.service.MaxmindService;
 import org.apache.commons.net.util.SubnetUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -167,6 +169,7 @@ public final class AddressService {
      * @param data        the data to lookup
      * @param ignoreCache should we bypass the cache?
      * @return the address data
+     * @throws APIException when an exception occurs
      * @see AddressData for address data
      * @see LookupData for lookup data
      */
@@ -176,13 +179,13 @@ public final class AddressService {
         long started = System.currentTimeMillis(); // Just started
         try {
             if (IPUtils.getIpType(ip) == -1) { // IP is not v4 or v6
-                throw new IllegalArgumentException("Invalid IP address: " + ip);
+                throw new APIException(HttpStatus.BAD_REQUEST, "Invalid IP address: " + ip);
             }
             // Prevent lookups of private IP ranges
             for (String subnet : PRIVATE_SUBNETS) {
                 SubnetUtils.SubnetInfo subnetInfo = new SubnetUtils(subnet).getInfo();
                 if (subnetInfo.isInRange(ip)) {
-                    throw new IllegalArgumentException("Cannot lookup private IP ranges");
+                    throw new APIException(HttpStatus.BAD_REQUEST, "Cannot lookup private IP ranges");
                 }
             }
             log.info("IP Range lookup took {}ms", System.currentTimeMillis() - started); // Debug

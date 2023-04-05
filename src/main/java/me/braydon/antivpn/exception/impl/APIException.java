@@ -1,4 +1,4 @@
-package me.braydon.antivpn.exception;
+package me.braydon.antivpn.exception.impl;
 
 import lombok.Getter;
 import lombok.NonNull;

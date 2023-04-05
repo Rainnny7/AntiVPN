@@ -1,4 +1,4 @@
-package me.braydon.antivpn.exception;
+package me.braydon.antivpn.exception.impl;
 
 import me.braydon.antivpn.model.APIKey;
 import org.springframework.http.HttpStatus;

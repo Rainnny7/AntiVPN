@@ -2,8 +2,8 @@ package me.braydon.antivpn.common;
 
 import lombok.NonNull;
 import lombok.experimental.UtilityClass;
-import me.braydon.antivpn.exception.APIException;
-import me.braydon.antivpn.exception.RateLimitException;
+import me.braydon.antivpn.exception.impl.APIException;
+import me.braydon.antivpn.exception.impl.RateLimitException;
 import me.braydon.antivpn.model.APIKey;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.LockedException;

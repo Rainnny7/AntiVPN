@@ -2,6 +2,11 @@
 server:
   address: 0.0.0.0
   port: 7500
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: on_param
+    include-exception: false
 
 # The header to use when identifying API keys
 auth:

@@ -93,6 +93,7 @@ public final class DatabaseTracker extends MetricTracker {
      */
     public enum DatabaseType {
         MONGODB,
-        REDIS
+        REDIS,
+        INFLUXDB
     }
 }

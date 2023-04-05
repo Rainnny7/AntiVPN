@@ -112,13 +112,18 @@ public final class MetricService {
                         // Writing to Influx
                         long before = System.currentTimeMillis(); // Before we wrote to Influx
                         client.getWriteApiBlocking().writePoints(points);
+                        long influxTimings = System.currentTimeMillis() - before;
+                        
+                        // Running metrics on metrics :>
+                        getTracker(DatabaseTracker.class).submitResponseTime(DatabaseTracker.DatabaseType.INFLUXDB, influxTimings);
+                        
                         if ((System.currentTimeMillis() - lastLog) >= TimeUnit.SECONDS.toMillis(10L)) { // Should we log?
                             lastLog = System.currentTimeMillis(); // Last logged now
                             
                             // Log the amount of points written
                             log.info("Wrote {} point(s) to InfluxDB in {}ms",
                                 points.size(),
-                                System.currentTimeMillis() - before
+                                influxTimings
                             );
                         }
                         points.clear(); // Clear the points from memory after we're done submitting them

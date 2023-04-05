@@ -120,7 +120,7 @@ public class AddressController {
         AddressData addressData = addressService.lookup(ip, Set.of(AddressService.LookupData.values()), false);
         return ResponseEntity.ok(Map.of(
             "message", addressData.getRisk() > 0.3D ? "Yes, you're using a VPN" : "No, you're not using a VPN",
-            "type", addressData.getIpType()
+            "ipType", addressData.getIpType()
         ));
     }
     

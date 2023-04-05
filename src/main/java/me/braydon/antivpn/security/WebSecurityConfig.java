@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.common.RateLimiter;
 import me.braydon.antivpn.common.Tuple;
-import me.braydon.antivpn.exception.RateLimitException;
+import me.braydon.antivpn.exception.impl.RateLimitException;
 import me.braydon.antivpn.metric.MetricService;
 import me.braydon.antivpn.metric.impl.DatabaseTracker;
 import me.braydon.antivpn.model.APIKey;
