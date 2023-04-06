@@ -10,7 +10,6 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -34,17 +33,9 @@ public final class NordService extends VPNServiceProvider {
      */
     @NonNull private Set<String> dns = new HashSet<>();
     
-    /**
-     * The jedis connection factory.
-     *
-     * @see JedisConnectionFactory for jedis connection factory
-     */
-    @NonNull private final JedisConnectionFactory jedisFactory;
-    
     @Autowired
-    public NordService(@NonNull JedisConnectionFactory jedisFactory, @NonNull MetricService metrics) {
+    public NordService(@NonNull MetricService metrics) {
         super("NordVPN", TimeUnit.DAYS.toMillis(7L), metrics);
-        this.jedisFactory = jedisFactory;
     }
     
     /**
@@ -92,7 +83,7 @@ public final class NordService extends VPNServiceProvider {
             // Add the IP to the list
             dns.parallelStream().forEach(dns -> {
                 try {
-                    IPUtils.getIpFromDns(dns, ip -> addIp(jedisFactory, ip));
+                    IPUtils.getIpFromDns(dns, this::addIp);
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 }

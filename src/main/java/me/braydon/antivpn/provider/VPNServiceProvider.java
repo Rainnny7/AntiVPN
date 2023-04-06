@@ -92,14 +92,11 @@ public abstract class VPNServiceProvider {
     /**
      * Add the given IP to this provider.
      *
-     * @param jedisFactory the jedis factory instance
-     * @param ip           the ip to add
+     * @param ip the ip to add
      * @see JedisConnectionFactory for jedis factory
      */
-    public final void addIp(@NonNull JedisConnectionFactory jedisFactory, @NonNull String ip) {
-        if (!hasIp(jedisFactory, ip, false)) {
-            scrapedIps.add(ip); // Add the IP
-        }
+    public final void addIp(@NonNull String ip) {
+        scrapedIps.add(ip); // Add the IP
     }
     
     /**
@@ -187,10 +184,11 @@ public abstract class VPNServiceProvider {
                 log("Successfully inserted {} IPs into the database, took {}ms",
                     StringUtils.formatNumber(inserted), System.currentTimeMillis() - before
                 );
+            } finally {
+                metrics.getTracker(DatabaseTracker.class).submitResponseTime(
+                    DatabaseTracker.DatabaseType.REDIS, System.currentTimeMillis() - before); // Metrics
+                scrapedIps.clear(); // Clear the scraped IPs after we've inserted them
             }
-            metrics.getTracker(DatabaseTracker.class).submitResponseTime(
-                DatabaseTracker.DatabaseType.REDIS, System.currentTimeMillis() - before); // Metrics
-            scrapedIps.clear(); // Clear the scraped IPs after we've inserted them
         }
     }
     

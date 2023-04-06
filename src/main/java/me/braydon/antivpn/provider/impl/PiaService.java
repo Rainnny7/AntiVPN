@@ -12,7 +12,6 @@ import me.braydon.antivpn.metric.MetricService;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -58,17 +57,9 @@ public final class PiaService extends VPNServiceProvider {
      */
     @NonNull private final Map<String, String> regions = Collections.synchronizedMap(new HashMap<>());
     
-    /**
-     * The jedis connection factory.
-     *
-     * @see JedisConnectionFactory for jedis connection factory
-     */
-    @NonNull private final JedisConnectionFactory jedisFactory;
-    
     @Autowired
-    public PiaService(@NonNull JedisConnectionFactory jedisFactory, @NonNull MetricService metrics) {
+    public PiaService(@NonNull MetricService metrics) {
         super("Private Internet Access", TimeUnit.DAYS.toMillis(14L), metrics);
-        this.jedisFactory = jedisFactory;
     }
     
     /**
@@ -123,7 +114,7 @@ public final class PiaService extends VPNServiceProvider {
             // Add the IP to the list
             regions.values().parallelStream().forEach(dns -> {
                 try {
-                    IPUtils.getIpFromDns(dns, ip -> addIp(jedisFactory, ip));
+                    IPUtils.getIpFromDns(dns, this::addIp);
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 }
@@ -147,7 +138,7 @@ public final class PiaService extends VPNServiceProvider {
                 throw new NullPointerException("Could not get the SHA of the servers directory");
             }
             for (JsonObject treeEntry : getRepositoryTree(TREE_CONTENTS_ENDPOINT + "/" + sha)) {
-                addIp(jedisFactory, treeEntry.get("path").getAsString()); // Add the IP address
+                addIp(treeEntry.get("path").getAsString()); // Add the IP address
             }
         }));
     }

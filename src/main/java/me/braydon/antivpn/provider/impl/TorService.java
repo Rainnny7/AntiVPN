@@ -5,7 +5,6 @@ import me.braydon.antivpn.common.WebRequest;
 import me.braydon.antivpn.metric.MetricService;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -24,17 +23,9 @@ import java.util.concurrent.TimeUnit;
 public final class TorService extends VPNServiceProvider {
     private static final String GET_EXIT_NODES_ENDPOINT = "https://check.torproject.org/cgi-bin/TorBulkExitList.py?ip=1.1.1.1"; // Getting exit nodes
     
-    /**
-     * The jedis connection factory.
-     *
-     * @see JedisConnectionFactory for jedis connection factory
-     */
-    @NonNull private final JedisConnectionFactory jedisFactory;
-    
     @Autowired
-    public TorService(@NonNull JedisConnectionFactory jedisFactory, @NonNull MetricService metrics) {
+    public TorService(@NonNull MetricService metrics) {
         super("Tor", TimeUnit.DAYS.toMillis(7L), metrics);
-        this.jedisFactory = jedisFactory;
     }
     
     /**
@@ -58,7 +49,7 @@ public final class TorService extends VPNServiceProvider {
                 ) {
                     bufferedReader.lines() // Stream over the lines
                         .parallel() // Process in parallel
-                        .forEach(ip -> addIp(jedisFactory, ip)); // Add the IP address
+                        .forEach(this::addIp); // Add the IP address
                 }
             } catch (IOException ex) {
                 ex.printStackTrace();

@@ -7,7 +7,6 @@ import me.braydon.antivpn.common.WebRequest;
 import me.braydon.antivpn.metric.MetricService;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -24,17 +23,9 @@ import java.util.concurrent.TimeUnit;
 public final class CloudflareService extends VPNServiceProvider {
     private static final String GET_IPV4_ENDPOINT = "https://www.cloudflare.com/ips-v4"; // Getting IPv4 addresses
     
-    /**
-     * The jedis connection factory.
-     *
-     * @see JedisConnectionFactory for jedis connection factory
-     */
-    @NonNull private final JedisConnectionFactory jedisFactory;
-    
     @Autowired
-    public CloudflareService(@NonNull JedisConnectionFactory jedisFactory, @NonNull MetricService metrics) {
+    public CloudflareService(@NonNull MetricService metrics) {
         super("Cloudflare", TimeUnit.DAYS.toMillis(7L), metrics);
-        this.jedisFactory = jedisFactory;
     }
     
     /**
@@ -59,7 +50,7 @@ public final class CloudflareService extends VPNServiceProvider {
                                       .withoutPrefixLength() // Remove the prefix length
                                       .stream()) // Stream over the IP addresses in the range
                 .map(IPAddress::toString) // Convert the IP addresses to strings
-                .forEach(ip -> addIp(jedisFactory, ip)); // Add the IP address
+                .forEach(this::addIp); // Add the IP address
         }));
     }
 }

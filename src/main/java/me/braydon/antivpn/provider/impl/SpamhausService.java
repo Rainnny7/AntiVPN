@@ -7,7 +7,6 @@ import me.braydon.antivpn.common.WebRequest;
 import me.braydon.antivpn.metric.MetricService;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -28,17 +27,9 @@ public final class SpamhausService extends VPNServiceProvider {
     private static final String EDROP_ENDPOINT = "https://www.spamhaus.org/drop/edrop.txt"; // EDrop list
     private static final String DROPV6_ENDPOINT = "https://www.spamhaus.org/drop/dropv6.txt"; // DropV6 list
     
-    /**
-     * The jedis connection factory.
-     *
-     * @see JedisConnectionFactory for jedis connection factory
-     */
-    @NonNull private final JedisConnectionFactory jedisFactory;
-    
     @Autowired
-    public SpamhausService(@NonNull JedisConnectionFactory jedisFactory, @NonNull MetricService metrics) {
+    public SpamhausService(@NonNull MetricService metrics) {
         super("Spamhaus", TimeUnit.DAYS.toMillis(7L), metrics);
-        this.jedisFactory = jedisFactory;
     }
     
     /**
@@ -52,17 +43,17 @@ public final class SpamhausService extends VPNServiceProvider {
     public void initialize() {
         // Add a scrape task to get the drop list
         addScrapeTask(new TimedScrapeTask("Fetch Drop List", TimeUnit.HOURS.toMillis(3L), () -> {
-            getList(DROP_ENDPOINT).parallelStream().forEach(ip -> addIp(jedisFactory, ip)); // Add the IP addresses to the set
+            getList(DROP_ENDPOINT).parallelStream().forEach(this::addIp); // Add the IP addresses to the set
         }));
         
         // Add a scrape task to get the edrop list
         addScrapeTask(new TimedScrapeTask("Fetch EDrop List", TimeUnit.HOURS.toMillis(3L), () -> {
-            getList(EDROP_ENDPOINT).parallelStream().forEach(ip -> addIp(jedisFactory, ip)); // Add the IP addresses to the set
+            getList(EDROP_ENDPOINT).parallelStream().forEach(this::addIp); // Add the IP addresses to the set
         }));
         
         // Add a scrape task to get the eropv6 list
         //        addScrapeTask(new TimedScrapeTask("Fetch DropV6 List", TimeUnit.HOURS.toMillis(3L), () -> {
-        //            getList(DROPV6_ENDPOINT).parallelStream().forEach(ip -> addIp(jedisFactory, ip)); // Add the IP addresses to the set
+        //            getList(DROPV6_ENDPOINT).parallelStream().forEach(this::addIp)); // Add the IP addresses to the set
         //        }));
     }
     
