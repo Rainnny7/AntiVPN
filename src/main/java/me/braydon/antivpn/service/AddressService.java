@@ -19,6 +19,7 @@ import me.braydon.antivpn.metric.MetricService;
 import me.braydon.antivpn.metric.impl.DatabaseTracker;
 import me.braydon.antivpn.metric.impl.RequestTracker;
 import me.braydon.antivpn.model.AddressData;
+import me.braydon.antivpn.model.Blacklist;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import me.braydon.antivpn.repository.AddressCacheRepository;
 import me.braydon.antivpn.repository.blacklist.BlacklistRepository;
@@ -242,7 +243,7 @@ public final class AddressService {
             
             // Data to return
             boolean vpnProvider = false; // Does the IP belong to a VPN provider?
-            Set<BlacklistType> blacklists = new HashSet<>(); // Blacklists the IP is apart of
+            Set<Blacklist.BlacklistType> blacklists = new HashSet<>(); // Blacklists the IP is apart of
             AddressData.AsnData asnData = null; // ASN data
             AddressData.GeographicalData geographicalData = null; // Geographical data
             
@@ -266,9 +267,9 @@ public final class AddressService {
                 asnData = (AddressData.AsnData) LookupData.ASN.execute(inetAddress);
                 
                 // Checking the ASN blacklist
-                if (blacklistRepository.contains(BlacklistType.ASN, String.valueOf(asnData.getNumber()))) {
+                if (blacklistRepository.contains(Blacklist.BlacklistType.ASN, String.valueOf(asnData.getNumber()))) {
                     log.info("ASN is blacklisted: {}", asnData.getNumber()); // Logging
-                    blacklists.add(BlacklistType.ASN);
+                    blacklists.add(Blacklist.BlacklistType.ASN);
                     risk += 0.5f;
                 }
                 log.info("ASN lookup took {}ms", System.currentTimeMillis() - started); // Debug
@@ -279,9 +280,9 @@ public final class AddressService {
                 geographicalData = (AddressData.GeographicalData) LookupData.GEOGRAPHICAL.execute(inetAddress);
                 
                 // Checking the ASN blacklist
-                if (blacklistRepository.contains(BlacklistType.COUNTRY, geographicalData.getCountry())) {
+                if (blacklistRepository.contains(Blacklist.BlacklistType.COUNTRY, geographicalData.getCountry())) {
                     log.info("Country is blacklisted: {}", geographicalData.getCountry()); // Logging
-                    blacklists.add(BlacklistType.COUNTRY);
+                    blacklists.add(Blacklist.BlacklistType.COUNTRY);
                     risk += 0.4f;
                 }
                 log.info("Geographical lookup took {}ms", System.currentTimeMillis() - started); // Debug

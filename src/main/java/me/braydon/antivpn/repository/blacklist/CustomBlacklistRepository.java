@@ -16,7 +16,7 @@ public interface CustomBlacklistRepository {
      * @param type    the type of blacklist
      * @param entries the entries to check
      * @return true if true, otherwise false
-     * @see BlacklistType for type
+     * @see Blacklist.BlacklistType for type
      */
-    boolean contains(@NonNull BlacklistType type, @NonNull Object... entries);
+    boolean contains(@NonNull Blacklist.BlacklistType type, @NonNull Object... entries);
 }

@@ -4,8 +4,8 @@ import me.braydon.antivpn.model.Blacklist;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 /**
- * The {@link BlacklistType} repository.
+ * The {@link Blacklist.BlacklistType} repository.
  *
  * @author Braydon
  */
-public interface BlacklistRepository extends MongoRepository<Blacklist, BlacklistType>, CustomBlacklistRepository {}
+public interface BlacklistRepository extends MongoRepository<Blacklist, Blacklist.BlacklistType>, CustomBlacklistRepository {}

@@ -25,10 +25,10 @@ public final class BlacklistRepositoryImpl implements CustomBlacklistRepository 
      * @param type    the type of blacklist
      * @param entries the entries to check
      * @return true if true, otherwise false
-     * @see BlacklistType for type
+     * @see Blacklist.BlacklistType for type
      */
     @Override
-    public boolean contains(@NonNull BlacklistType type, @NotNull @NonNull Object... entries) {
+    public boolean contains(@NonNull Blacklist.BlacklistType type, @NotNull @NonNull Object... entries) {
         Query query = new Query();
         query.addCriteria(Criteria.where("_id")
                               .is(type)

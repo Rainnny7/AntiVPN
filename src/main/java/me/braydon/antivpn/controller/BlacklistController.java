@@ -45,11 +45,11 @@ public final class BlacklistController {
      * @param entry the entry to add/remove to/from the blacklist
      * @return the json response
      * @see Blacklist for blacklist
-     * @see BlacklistType for blacklist type
+     * @see Blacklist.BlacklistType for blacklist type
      */
     @PostMapping("/modify")
     @ResponseBody
-    public ResponseEntity<?> blacklist(@RequestParam @NonNull BlacklistType type, @RequestParam @NonNull Object entry) {
+    public ResponseEntity<?> blacklist(@RequestParam @NonNull Blacklist.BlacklistType type, @RequestParam @NonNull Object entry) {
         AuthUtils.validatePermissions(APIKey.Permission.MANAGE_BLACKLIST); // Validate permissions
         if (entry instanceof String) { // Checking for empty entry string
             if (((String) entry).isEmpty()) {
