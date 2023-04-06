@@ -35,6 +35,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author Braydon
@@ -136,14 +137,24 @@ public final class AddressService {
                 if (canLog) { // Log that we're ticking providers
                     log.info("Ticking {} providers...", providers.size());
                 }
-                for (VPNServiceProvider provider : providers) {
+                AtomicInteger completed = new AtomicInteger(0); // The amount of providers that have completed
+                providers.parallelStream().forEach(provider -> {
                     // Scrape the provider
                     provider.scrape(jedisFactory);
+                    completed.incrementAndGet(); // Increment the completed providers
                     
                     // Purge expired IPs
                     if ((System.currentTimeMillis() - lastIpPurge) >= TimeUnit.HOURS.toMillis(12L)) {
                         lastIpPurge = System.currentTimeMillis(); // Update the last ip purge to now
                         provider.purgeExpiredIps(jedisFactory); // Purge expired IPs
+                    }
+                });
+                // Wait for all providers to complete
+                while (completed.get() != providers.size()) {
+                    try {
+                        Thread.sleep(100L);
+                    } catch (InterruptedException ex) {
+                        ex.printStackTrace();
                     }
                 }
                 if (canLog) { // Log the GC
