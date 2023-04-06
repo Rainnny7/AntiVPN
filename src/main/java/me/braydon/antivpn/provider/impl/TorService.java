@@ -1,7 +1,7 @@
 package me.braydon.antivpn.provider.impl;
 
 import lombok.NonNull;
-import me.braydon.antivpn.AntiVPN;
+import me.braydon.antivpn.common.WebRequest;
 import me.braydon.antivpn.metric.MetricService;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,10 +13,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URI;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -53,16 +49,10 @@ public final class TorService extends VPNServiceProvider {
         // Add a scrape task to get all exit nodes
         addScrapeTask(new TimedScrapeTask("Fetch Exit Nodes", TimeUnit.HOURS.toMillis(3L), () -> {
             try {
-                HttpRequest request = HttpRequest.newBuilder()
-                                          .uri(URI.create(GET_EXIT_NODES_ENDPOINT))
-                                          .GET()
-                                          .timeout(Duration.ofSeconds(20L))
-                                          .build();
-                HttpResponse<InputStream> response = AntiVPN.HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofInputStream());
-                if (response.statusCode() != 200) { // If the status code is not 200
-                    throw new IllegalStateException(String.format("Bad status code (%s) returned", response.statusCode()));
-                }
-                try (InputStream inputStream = response.body();
+                try (InputStream inputStream = WebRequest.builder()
+                                                   .url(GET_EXIT_NODES_ENDPOINT)
+                                                   .build()
+                                                   .sendAsInputStream(); // Send a request to the exit nodes endpoint
                      InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
                      BufferedReader bufferedReader = new BufferedReader(inputStreamReader)
                 ) {
@@ -70,7 +60,7 @@ public final class TorService extends VPNServiceProvider {
                         .parallel() // Process in parallel
                         .forEach(ip -> addIp(jedisFactory, ip)); // Add the IP address
                 }
-            } catch (IOException | InterruptedException ex) {
+            } catch (IOException ex) {
                 ex.printStackTrace();
             }
         }));

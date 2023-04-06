@@ -7,6 +7,7 @@ import lombok.SneakyThrows;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.common.StringUtils;
+import me.braydon.antivpn.common.WebRequest;
 import me.braydon.antivpn.metric.MetricService;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -161,25 +162,15 @@ public final class PiaService extends VPNServiceProvider {
     @NonNull
     private Set<JsonObject> getRepositoryTree(@NonNull String endpoint) {
         Set<JsonObject> tree = new HashSet<>();
-        try {
-            HttpRequest request = HttpRequest.newBuilder()
-                                      .uri(URI.create(endpoint))
-                                      .GET()
-                                      .timeout(Duration.ofSeconds(20L))
-                                      .header("Accept", "application/vnd.github+json")
-                                      .header("X-GitHub-Api-Version", githubApiVersion)
-                                      .header("Authorization", "Bearer " + githubBearer)
-                                      .build();
-            HttpResponse<String> response = AntiVPN.HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) { // If the status code is not 200
-                throw new IllegalStateException(String.format("Bad status code (%s) returned", response.statusCode()));
-            }
-            JsonObject jsonObject = AntiVPN.GSON.fromJson(response.body(), JsonObject.class);
-            for (JsonElement treeElement : jsonObject.getAsJsonArray("tree")) {
-                tree.add(treeElement.getAsJsonObject());
-            }
-        } catch (IOException | InterruptedException ex) {
-            ex.printStackTrace();
+        JsonObject jsonObject = WebRequest.builder()
+                                    .url(endpoint)
+                                    .header("Accept", "application/vnd.github+json")
+                                    .header("X-GitHub-Api-Version", githubApiVersion)
+                                    .header("Authorization", "Bearer " + githubBearer)
+                                    .build()
+                                    .sendAsJson().getAsJsonObject(); // Send a request to the endpoint
+        for (JsonElement treeElement : jsonObject.getAsJsonArray("tree")) {
+            tree.add(treeElement.getAsJsonObject());
         }
         return Collections.unmodifiableSet(tree);
     }

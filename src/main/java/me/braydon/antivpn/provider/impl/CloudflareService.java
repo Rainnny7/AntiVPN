@@ -3,7 +3,7 @@ package me.braydon.antivpn.provider.impl;
 import inet.ipaddr.IPAddress;
 import inet.ipaddr.IPAddressString;
 import lombok.NonNull;
-import me.braydon.antivpn.AntiVPN;
+import me.braydon.antivpn.common.WebRequest;
 import me.braydon.antivpn.metric.MetricService;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,11 +11,7 @@ import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
@@ -52,28 +48,18 @@ public final class CloudflareService extends VPNServiceProvider {
     public void initialize() {
         // Add a scrape task to get all provider ips
         addScrapeTask(new TimedScrapeTask("Fetch IPv4 List", TimeUnit.DAYS.toMillis(1L), () -> {
-            try {
-                HttpRequest request = HttpRequest.newBuilder()
-                                          .uri(URI.create(GET_IPV4_ENDPOINT))
-                                          .GET()
-                                          .timeout(Duration.ofSeconds(20L))
-                                          .build();
-                HttpResponse<String> response = AntiVPN.HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-                if (response.statusCode() != 200) { // If the status code is not 200
-                    throw new IllegalStateException(String.format("Bad status code (%s) returned", response.statusCode()));
-                }
-                String body = response.body(); // The body of the response
-                Arrays.stream(body.split("\n")) // Stream over the returned ranges
-                    .parallel() // Process in parallel
-                    .flatMap(range -> new IPAddressString(range).getAddress() // Get the IP address range
-                                          .toPrefixBlock() // Convert the range to a prefix block
-                                          .withoutPrefixLength() // Remove the prefix length
-                                          .stream()) // Stream over the IP addresses in the range
-                    .map(IPAddress::toString) // Convert the IP addresses to strings
-                    .forEach(ip -> addIp(jedisFactory, ip)); // Add the IP address
-            } catch (IOException | InterruptedException ex) {
-                ex.printStackTrace();
-            }
+            String body = WebRequest.builder()
+                              .url(GET_IPV4_ENDPOINT)
+                              .build()
+                              .send(HttpResponse.BodyHandlers.ofString()); // Send a request to the IPv4 endpoint
+            Arrays.stream(body.split("\n")) // Stream over the returned ranges
+                .parallel() // Process in parallel
+                .flatMap(range -> new IPAddressString(range).getAddress() // Get the IP address range
+                                      .toPrefixBlock() // Convert the range to a prefix block
+                                      .withoutPrefixLength() // Remove the prefix length
+                                      .stream()) // Stream over the IP addresses in the range
+                .map(IPAddress::toString) // Convert the IP addresses to strings
+                .forEach(ip -> addIp(jedisFactory, ip)); // Add the IP address
         }));
     }
 }

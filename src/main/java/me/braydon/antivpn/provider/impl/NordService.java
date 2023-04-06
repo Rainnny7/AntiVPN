@@ -1,9 +1,9 @@
 package me.braydon.antivpn.provider.impl;
 
 import lombok.NonNull;
-import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.common.StringUtils;
+import me.braydon.antivpn.common.WebRequest;
 import me.braydon.antivpn.metric.MetricService;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.jsoup.Jsoup;
@@ -14,11 +14,7 @@ import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -62,39 +58,29 @@ public final class NordService extends VPNServiceProvider {
     public void initialize() {
         // Add a scrape task to get all dns servers
         addScrapeTask(new TimedScrapeTask("Fetch DNS Servers", TimeUnit.HOURS.toMillis(3L), () -> {
-            try {
-                HttpRequest request = HttpRequest.newBuilder()
-                                          .uri(URI.create(CONFIGS_PAGE))
-                                          .GET()
-                                          .timeout(Duration.ofSeconds(20L))
-                                          .build();
-                HttpResponse<String> response = AntiVPN.HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-                if (response.statusCode() != 200) { // If the status code is not 200
-                    throw new IllegalStateException(String.format("Bad status code (%s) returned", response.statusCode()));
-                }
-                String html = response.body(); // The html of the response
-                Document document = Jsoup.parse(html);
-                
-                Set<String> dns = new HashSet<>(); // The new DNS servers
-                for (Element serverElement : document.getElementsContainingText("nordvpn.com")) {
-                    for (Element spanElement : serverElement.getElementsByClass("mr-2")) {
-                        if (!spanElement.nodeName().equals("span")) { // Not the element we're looking for
-                            continue;
-                        }
-                        String text = spanElement.text();
-                        if (!text.matches(DNS_REGEX)) { // Value of the element is not a DNS server
-                            continue;
-                        }
-                        dns.add(text); // Add the DNS server
+            String html = WebRequest.builder()
+                              .url(CONFIGS_PAGE)
+                              .build()
+                              .send(HttpResponse.BodyHandlers.ofString()); // Send a request to the configs page
+            Document document = Jsoup.parse(html);
+            
+            Set<String> dns = new HashSet<>(); // The new DNS servers
+            for (Element serverElement : document.getElementsContainingText("nordvpn.com")) {
+                for (Element spanElement : serverElement.getElementsByClass("mr-2")) {
+                    if (!spanElement.nodeName().equals("span")) { // Not the element we're looking for
+                        continue;
                     }
+                    String text = spanElement.text();
+                    if (!text.matches(DNS_REGEX)) { // Value of the element is not a DNS server
+                        continue;
+                    }
+                    dns.add(text); // Add the DNS server
                 }
-                this.dns = dns; // Update the DNS actual list
-                
-                // Log the DNS servers
-                log("Found {} DNS servers", StringUtils.formatNumber(dns.size()));
-            } catch (IOException | InterruptedException ex) {
-                ex.printStackTrace();
             }
+            this.dns = dns; // Update the DNS actual list
+            
+            // Log the DNS servers
+            log("Found {} DNS servers", StringUtils.formatNumber(dns.size()));
         }));
         
         // Add a scrape task to perform a DNS lookup of all A records for DNS servers
