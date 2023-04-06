@@ -1,4 +1,4 @@
-package me.braydon.antivpn.security;
+package me.braydon.antivpn.config;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -9,6 +9,7 @@ import me.braydon.antivpn.exception.impl.RateLimitException;
 import me.braydon.antivpn.metric.MetricService;
 import me.braydon.antivpn.metric.impl.DatabaseTracker;
 import me.braydon.antivpn.model.APIKey;
+import me.braydon.antivpn.repository.APIKeyRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;

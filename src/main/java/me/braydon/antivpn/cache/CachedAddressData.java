@@ -5,8 +5,8 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.ToString;
 import me.braydon.antivpn.AntiVPN;
-import me.braydon.antivpn.address.AddressService;
 import me.braydon.antivpn.model.AddressData;
+import me.braydon.antivpn.service.AddressService;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.redis.core.RedisHash;
 

@@ -1,8 +1,7 @@
-package me.braydon.antivpn.blacklist.repository;
+package me.braydon.antivpn.repository.blacklist;
 
 import lombok.NonNull;
-import me.braydon.antivpn.blacklist.Blacklist;
-import me.braydon.antivpn.blacklist.BlacklistType;
+import me.braydon.antivpn.model.Blacklist;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;

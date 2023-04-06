@@ -2,7 +2,6 @@ package me.braydon.antivpn.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.*;
-import me.braydon.antivpn.blacklist.BlacklistType;
 import me.braydon.antivpn.provider.VPNServiceProvider;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;

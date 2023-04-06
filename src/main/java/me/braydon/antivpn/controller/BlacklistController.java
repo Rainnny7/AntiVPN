@@ -1,12 +1,11 @@
-package me.braydon.antivpn.blacklist.route;
+package me.braydon.antivpn.controller;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import me.braydon.antivpn.blacklist.Blacklist;
-import me.braydon.antivpn.blacklist.BlacklistType;
-import me.braydon.antivpn.blacklist.repository.BlacklistRepository;
 import me.braydon.antivpn.common.AuthUtils;
 import me.braydon.antivpn.model.APIKey;
+import me.braydon.antivpn.model.Blacklist;
+import me.braydon.antivpn.repository.blacklist.BlacklistRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;

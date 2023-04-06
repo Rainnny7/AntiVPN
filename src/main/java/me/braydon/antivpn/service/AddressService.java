@@ -1,4 +1,4 @@
-package me.braydon.antivpn.address;
+package me.braydon.antivpn.service;
 
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
@@ -12,9 +12,6 @@ import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.AntiVPN;
-import me.braydon.antivpn.blacklist.BlacklistType;
-import me.braydon.antivpn.blacklist.repository.BlacklistRepository;
-import me.braydon.antivpn.cache.AddressCacheRepository;
 import me.braydon.antivpn.cache.CachedAddressData;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.exception.impl.APIException;
@@ -23,7 +20,8 @@ import me.braydon.antivpn.metric.impl.DatabaseTracker;
 import me.braydon.antivpn.metric.impl.RequestTracker;
 import me.braydon.antivpn.model.AddressData;
 import me.braydon.antivpn.provider.VPNServiceProvider;
-import me.braydon.antivpn.service.MaxmindService;
+import me.braydon.antivpn.repository.AddressCacheRepository;
+import me.braydon.antivpn.repository.blacklist.BlacklistRepository;
 import org.apache.commons.net.util.SubnetUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;

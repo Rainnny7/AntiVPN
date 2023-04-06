@@ -1,12 +1,9 @@
-package me.braydon.antivpn.address.controller;
+package me.braydon.antivpn.controller;
 
 import com.google.gson.JsonObject;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.AntiVPN;
-import me.braydon.antivpn.address.AddressService;
-import me.braydon.antivpn.blacklist.Blacklist;
-import me.braydon.antivpn.blacklist.repository.BlacklistRepository;
 import me.braydon.antivpn.common.AuthUtils;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.common.MemoryFormatter;
@@ -14,7 +11,10 @@ import me.braydon.antivpn.metric.MetricService;
 import me.braydon.antivpn.metric.impl.RequestTracker;
 import me.braydon.antivpn.model.APIKey;
 import me.braydon.antivpn.model.AddressData;
+import me.braydon.antivpn.model.Blacklist;
 import me.braydon.antivpn.provider.VPNServiceProvider;
+import me.braydon.antivpn.repository.blacklist.BlacklistRepository;
+import me.braydon.antivpn.service.AddressService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;

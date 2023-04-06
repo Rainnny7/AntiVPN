@@ -1,4 +1,4 @@
-package me.braydon.antivpn.blacklist;
+package me.braydon.antivpn.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -57,5 +57,22 @@ public final class Blacklist {
      */
     public void removeEntry(@NonNull Object entry) {
         entries.remove(entry);
+    }
+    
+    /**
+     * The type of blacklists.
+     *
+     * @author Braydon
+     */
+    public enum BlacklistType {
+        /**
+         * A blacklist for ASN numbers and organizations.
+         */
+        ASN,
+        
+        /**
+         * A blacklist for countries.
+         */
+        COUNTRY
     }
 }
