@@ -8,9 +8,8 @@ import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.common.StringUtils;
 import me.braydon.antivpn.common.WebRequest;
-import me.braydon.antivpn.metric.MetricService;
-import me.braydon.antivpn.provider.VPNServiceProvider;
-import org.springframework.beans.factory.annotation.Autowired;
+import me.braydon.antivpn.provider.ServiceProvider;
+import me.braydon.antivpn.provider.scrape.TimedScrapeTask;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -29,7 +28,7 @@ import java.util.concurrent.TimeUnit;
  * @author Braydon
  */
 @Service
-public final class PiaService extends VPNServiceProvider {
+public final class PiaService extends ServiceProvider {
     private static final String GITHUB_REPO = "Lars-/PIA-servers"; // The GitHub repository to scrape for server IPs
     private static final String GET_SERVERS_ENDPOINT = "https://serverlist.piaservers.net/vpninfo/servers/v6"; // Getting server regions/dns
     private static final String MASTER_TREES_ENDPOINT = String.format("https://api.github.com/repos/%s/git/trees/master", GITHUB_REPO); // Getting tree list
@@ -57,9 +56,8 @@ public final class PiaService extends VPNServiceProvider {
      */
     @NonNull private final Map<String, String> regions = Collections.synchronizedMap(new HashMap<>());
     
-    @Autowired
-    public PiaService(@NonNull MetricService metrics) {
-        super("Private Internet Access", TimeUnit.DAYS.toMillis(14L), metrics);
+    public PiaService() {
+        super(1, "Private Internet Access", TimeUnit.DAYS.toMillis(14L));
     }
     
     /**
@@ -114,7 +112,7 @@ public final class PiaService extends VPNServiceProvider {
             // Add the IP to the list
             regions.values().parallelStream().forEach(dns -> {
                 try {
-                    IPUtils.getIpFromDns(dns, this::addIp);
+                    IPUtils.getIpFromHostname(dns, this::addIp);
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 }

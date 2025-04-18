@@ -4,7 +4,7 @@ import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
 import lombok.NonNull;
 import me.braydon.antivpn.metric.MetricTracker;
-import me.braydon.antivpn.provider.VPNServiceProvider;
+import me.braydon.antivpn.provider.ServiceProvider;
 
 import java.time.Instant;
 import java.util.List;
@@ -33,10 +33,10 @@ public final class ProviderTracker extends MetricTracker {
      */
     @Override
     public void track(@NonNull List<Point> chain) {
-        Set<VPNServiceProvider> providers = VPNServiceProvider.getRegistry();
+        Set<ServiceProvider> providers = ServiceProvider.getRegistry();
         
         // IP Addresses
-        for (VPNServiceProvider provider : providers) {
+        for (ServiceProvider provider : providers) {
             chain.add(Point.measurement("providerIps")
                           .addTag("provider", provider.getName())
                           .addField("value", ThreadLocalRandom.current().nextInt(100, 1000)) // TODO: impl into cache, too intense to do now

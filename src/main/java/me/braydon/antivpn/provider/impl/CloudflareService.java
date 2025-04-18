@@ -2,11 +2,9 @@ package me.braydon.antivpn.provider.impl;
 
 import inet.ipaddr.IPAddress;
 import inet.ipaddr.IPAddressString;
-import lombok.NonNull;
 import me.braydon.antivpn.common.WebRequest;
-import me.braydon.antivpn.metric.MetricService;
-import me.braydon.antivpn.provider.VPNServiceProvider;
-import org.springframework.beans.factory.annotation.Autowired;
+import me.braydon.antivpn.provider.ServiceProvider;
+import me.braydon.antivpn.provider.scrape.TimedScrapeTask;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -20,12 +18,11 @@ import java.util.concurrent.TimeUnit;
  * @author Braydon
  */
 @Service
-public final class CloudflareService extends VPNServiceProvider {
+public final class CloudflareService extends ServiceProvider {
     private static final String GET_IPV4_ENDPOINT = "https://www.cloudflare.com/ips-v4"; // Getting IPv4 addresses
     
-    @Autowired
-    public CloudflareService(@NonNull MetricService metrics) {
-        super("Cloudflare", TimeUnit.DAYS.toMillis(7L), metrics);
+    public CloudflareService() {
+        super(3, "Cloudflare", TimeUnit.DAYS.toMillis(7L));
     }
     
     /**

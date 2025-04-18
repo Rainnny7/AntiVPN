@@ -4,9 +4,8 @@ import inet.ipaddr.IPAddress;
 import inet.ipaddr.IPAddressString;
 import lombok.NonNull;
 import me.braydon.antivpn.common.WebRequest;
-import me.braydon.antivpn.metric.MetricService;
-import me.braydon.antivpn.provider.VPNServiceProvider;
-import org.springframework.beans.factory.annotation.Autowired;
+import me.braydon.antivpn.provider.ServiceProvider;
+import me.braydon.antivpn.provider.scrape.TimedScrapeTask;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -22,14 +21,13 @@ import java.util.stream.Collectors;
  * @author Braydon
  */
 @Service
-public final class SpamhausService extends VPNServiceProvider {
+public final class SpamhausService extends ServiceProvider {
     private static final String DROP_ENDPOINT = "https://www.spamhaus.org/drop/drop.txt"; // Drop list
     private static final String EDROP_ENDPOINT = "https://www.spamhaus.org/drop/edrop.txt"; // EDrop list
     private static final String DROPV6_ENDPOINT = "https://www.spamhaus.org/drop/dropv6.txt"; // DropV6 list
     
-    @Autowired
-    public SpamhausService(@NonNull MetricService metrics) {
-        super("Spamhaus", TimeUnit.DAYS.toMillis(7L), metrics);
+    public SpamhausService() {
+        super(5, "Spamhaus", TimeUnit.DAYS.toMillis(7L));
     }
     
     /**

@@ -36,6 +36,21 @@ logging:
 # Spring Configuration
 spring:
   # Database Configuration
+  datasource:
+    url: jdbc:mariadb://127.0.0.1:3306/antivpn?useCompression=true&useServerPrepStmts=true&cachePrepStmts=true&rewriteBatchedStatements=true&autoReconnect=true
+    username: antivpn
+    password: p4$$w0rd
+    driver-class-name: org.mariadb.jdbc.Driver
+    type: com.zaxxer.hikari.HikariDataSource
+    hikari:
+      pool-name: antivpn
+      maximum-pool-size: 51
+      minimum-idle: 5
+      idle-timeout: 60000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+      connection-timeout: 10000
+      validation-timeout: 3000
   data:
     # MongoDB - This is used to store persistent data, such as API keys.
     mongodb:
@@ -48,6 +63,19 @@ spring:
       port: 6379
       database: 0
       auth: "" # Leave blank for no auth
+  jpa:
+    hibernate:
+      ddl-auto: "update"
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MariaDB102Dialect
+  #        generate_statistics: true
+  sql:
+    init:
+      mode: always
+  mvc:
+    application:
+      ipv4only: true
 
   # Ignore
   application:
@@ -56,11 +84,8 @@ spring:
     location: "classpath:banner.txt"
   autoconfigure:
     exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
-  mvc:
-    application:
-      ipv4only: true
 
-threads: 6 # The amount of threads the thread pool should use when ticking
+threads: 50 # The amount of threads the thread pool should use when ticking
 dev: true # Are we in a development environment?
 amiusingavpn: false # Enable this route?
 debug: false # Enable debug mode

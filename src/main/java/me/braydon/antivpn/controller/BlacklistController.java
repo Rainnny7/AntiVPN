@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.common.AuthUtils;
 import me.braydon.antivpn.model.APIKey;
 import me.braydon.antivpn.model.Blacklist;
-import me.braydon.antivpn.repository.blacklist.BlacklistRepository;
+import me.braydon.antivpn.repository.BlacklistRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -49,14 +49,18 @@ public final class BlacklistController {
      */
     @PostMapping("/modify")
     @ResponseBody
-    public ResponseEntity<?> blacklist(@RequestParam @NonNull Blacklist.BlacklistType type, @RequestParam @NonNull Object entry) {
+    public ResponseEntity<?> blacklist(@RequestParam @NonNull Blacklist.BlacklistType type, @RequestParam @NonNull String entry) {
         AuthUtils.validatePermissions(APIKey.Permission.MANAGE_BLACKLIST); // Validate permissions
-        if (entry instanceof String) { // Checking for empty entry string
-            if (((String) entry).isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of("message", "Entry cannot be empty"));
-            }
+        if (entry.isEmpty()) { // Can't have an empty entry
+            return ResponseEntity.badRequest().body(Map.of("message", "Entry cannot be empty"));
         }
-        Blacklist blacklist = blacklistRepository.findById(type).orElse(new Blacklist(type, new HashSet<>()));
+        Blacklist blacklist = blacklistRepository.findByType(type);
+        if (blacklist == null) {
+            Blacklist defaultBlacklist = new Blacklist();
+            defaultBlacklist.setType(type);
+            defaultBlacklist.setEntries(new HashSet<>());
+            blacklist = defaultBlacklist;
+        }
         boolean added = false;
         if (blacklist.containsEntry(entry)) { // Removing the entry
             blacklist.removeEntry(entry);

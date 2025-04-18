@@ -1,10 +1,8 @@
 package me.braydon.antivpn.provider.impl;
 
-import lombok.NonNull;
 import me.braydon.antivpn.common.WebRequest;
-import me.braydon.antivpn.metric.MetricService;
-import me.braydon.antivpn.provider.VPNServiceProvider;
-import org.springframework.beans.factory.annotation.Autowired;
+import me.braydon.antivpn.provider.ServiceProvider;
+import me.braydon.antivpn.provider.scrape.TimedScrapeTask;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -20,12 +18,11 @@ import java.util.concurrent.TimeUnit;
  * @author Braydon
  */
 @Service
-public final class TorService extends VPNServiceProvider {
+public final class TorService extends ServiceProvider {
     private static final String GET_EXIT_NODES_ENDPOINT = "https://check.torproject.org/cgi-bin/TorBulkExitList.py?ip=1.1.1.1"; // Getting exit nodes
     
-    @Autowired
-    public TorService(@NonNull MetricService metrics) {
-        super("Tor", TimeUnit.DAYS.toMillis(7L), metrics);
+    public TorService() {
+        super(4, "Tor", TimeUnit.DAYS.toMillis(7L));
     }
     
     /**

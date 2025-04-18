@@ -2,7 +2,7 @@ package me.braydon.antivpn.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.*;
-import me.braydon.antivpn.provider.VPNServiceProvider;
+import me.braydon.antivpn.provider.ServiceProvider;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
 
@@ -37,7 +37,7 @@ public class AddressData {
     /**
      * Whether this address belongs to a VPN provider.
      *
-     * @see VPNServiceProvider for provider
+     * @see ServiceProvider for provider
      */
     private final boolean vpnProvider;
     

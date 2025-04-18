@@ -4,7 +4,6 @@ import me.braydon.antivpn.model.APIKey;
 import me.braydon.antivpn.repository.APIKeyRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.platform.commons.util.Preconditions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.data.mongo.DataMongoTest;
 
@@ -31,9 +30,7 @@ public final class SecurityTests {
     @DisplayName("Generate a fully privileged API key")
     @Test
     public void fullyPrivilegedApiKey() {
-        APIKey apiKey = APIKey.generate("Generated from security test", APIKey.Permission.values()); // Generate the API key
-        Preconditions.condition(apiKey.equals(apiKeyRepository.save(apiKey)),
-            "Failed saving the API key"); // Validate the API key was saved successfully
-        System.out.printf("Created a fully privileged API key: %s%n", apiKey.getKey()); // Log the creation
+        APIKey apiKey = APIKey.generate(apiKeyRepository, "Generated from security test", APIKey.Permission.values()); // Generate the API key
+        System.out.printf("Created a fully privileged API key: %s%n", apiKey.getSecret()); // Log the creation
     }
 }

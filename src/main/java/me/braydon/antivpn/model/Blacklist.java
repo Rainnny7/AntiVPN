@@ -1,12 +1,11 @@
 package me.braydon.antivpn.model;
 
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.Setter;
 import lombok.ToString;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
 
+import javax.persistence.*;
 import java.util.Set;
 
 /**
@@ -14,29 +13,39 @@ import java.util.Set;
  *
  * @author Braydon
  */
-@Document("blacklists")
-@AllArgsConstructor
+@Entity
+@Table(name = "blacklists")
+@Setter
 @Getter
 @ToString
-public final class Blacklist {
+public class Blacklist {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @NonNull
+    private Long id;
+    
     /**
      * The type of this blacklist.
      *
      * @see BlacklistType for type
      */
-    @Id @NonNull private final BlacklistType type;
+    @NonNull private BlacklistType type;
     
     /**
      * The entries in this blacklist.
      */
-    @NonNull private final Set<Object> entries;
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "blacklist_entries")
+    @Column(name = "blacklist_entry")
+    @NonNull
+    private Set<String> entries;
     
     /**
      * Add an entry to this blacklist.
      *
      * @param entry the entry to add
      */
-    public void addEntry(@NonNull Object entry) {
+    public void addEntry(@NonNull String entry) {
         entries.add(entry);
     }
     
@@ -46,7 +55,7 @@ public final class Blacklist {
      * @param entry the entry to check
      * @return true if true, otherwise false
      */
-    public boolean containsEntry(@NonNull Object entry) {
+    public boolean containsEntry(@NonNull String entry) {
         return entries.contains(entry);
     }
     
@@ -55,7 +64,7 @@ public final class Blacklist {
      *
      * @param entry the entry to remove
      */
-    public void removeEntry(@NonNull Object entry) {
+    public void removeEntry(@NonNull String entry) {
         entries.remove(entry);
     }
     

@@ -20,9 +20,10 @@ import me.braydon.antivpn.metric.impl.DatabaseTracker;
 import me.braydon.antivpn.metric.impl.RequestTracker;
 import me.braydon.antivpn.model.AddressData;
 import me.braydon.antivpn.model.Blacklist;
-import me.braydon.antivpn.provider.VPNServiceProvider;
+import me.braydon.antivpn.provider.ServiceProvider;
 import me.braydon.antivpn.repository.AddressCacheRepository;
-import me.braydon.antivpn.repository.blacklist.BlacklistRepository;
+import me.braydon.antivpn.repository.BlacklistRepository;
+import me.braydon.antivpn.repository.ServiceProviderRepository;
 import org.apache.commons.net.util.SubnetUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
@@ -99,6 +100,13 @@ public final class AddressService {
     @NonNull private final AddressCacheRepository addressCacheRepository;
     
     /**
+     * The service provider repository.
+     *
+     * @see ServiceProviderRepository for service provider repository
+     */
+    @NonNull private final ServiceProviderRepository serviceProviderRepository;
+    
+    /**
      * The blacklist repository.
      *
      * @see BlacklistRepository for blacklist repository
@@ -113,10 +121,12 @@ public final class AddressService {
     
     @Autowired
     public AddressService(@NonNull JedisConnectionFactory jedisFactory, @NonNull MetricService metrics,
-                          @NonNull AddressCacheRepository addressCacheRepository, @NonNull BlacklistRepository blacklistRepository) {
+                          @NonNull AddressCacheRepository addressCacheRepository, @NonNull ServiceProviderRepository serviceProviderRepository,
+                          @NonNull BlacklistRepository blacklistRepository) {
         this.jedisFactory = jedisFactory;
         this.metrics = metrics;
         this.addressCacheRepository = addressCacheRepository;
+        this.serviceProviderRepository = serviceProviderRepository;
         this.blacklistRepository = blacklistRepository;
     }
     
@@ -132,19 +142,13 @@ public final class AddressService {
                 boolean canLog = (System.currentTimeMillis() - lastLog) >= TimeUnit.SECONDS.toMillis(10L); // Check if we can log
                 lastLog = System.currentTimeMillis(); // Update the last log to now
                 
-                Set<VPNServiceProvider> providers = VPNServiceProvider.getRegistry();
+                Set<ServiceProvider> providers = ServiceProvider.getRegistry();
                 if (canLog) { // Log that we're ticking providers
                     log.info("Ticking {} providers...", providers.size());
                 }
                 // Scrape the providers
-                for (VPNServiceProvider provider : providers) {
-                    provider.scrape(jedisFactory);
-                    
-                    // Purge expired IPs
-                    if ((System.currentTimeMillis() - lastIpPurge) >= TimeUnit.HOURS.toMillis(12L)) {
-                        lastIpPurge = System.currentTimeMillis(); // Update the last ip purge to now
-                        provider.purgeExpiredIps(jedisFactory); // Purge expired IPs
-                    }
+                for (ServiceProvider provider : providers) {
+                    provider.scrape();
                 }
                 if (canLog) { // Log the GC
                     log.info("Running GC...");
@@ -242,7 +246,7 @@ public final class AddressService {
             log.info("Looking up data for IP (asn={}, geo={}): {}", lookupAsn, lookupGeographical, ip); // Logging
             
             // Data to return
-            boolean vpnProvider = false; // Does the IP belong to a VPN provider?
+            boolean serviceProvider = false; // Does the IP belong to a service provider?
             Set<Blacklist.BlacklistType> blacklists = new HashSet<>(); // Blacklists the IP is apart of
             AddressData.AsnData asnData = null; // ASN data
             AddressData.GeographicalData geographicalData = null; // Geographical data
@@ -250,14 +254,12 @@ public final class AddressService {
             // Calculating the risk score based on weights
             float risk = 0f;
             
-            // Use the highest weight for IPs belonging to VPN providers
-            for (VPNServiceProvider serviceProvider : VPNServiceProvider.getRegistry()) {
-                if (serviceProvider.hasIp(jedisFactory, ip, true)) {
-                    log.info("IP belongs to VPN provider: {}", serviceProvider.getName()); // Logging
-                    vpnProvider = true;
-                    risk += 1f;
-                    break;
-                }
+            // Use the highest weight for IPs belonging to service providers
+            Integer serviceProviderId = serviceProviderRepository.findProviderIdByIpAddress(ip);
+            if (serviceProviderId != null) {
+                log.info("IP belongs to VPN provider: {}", serviceProviderRepository); // Logging
+                serviceProvider = true;
+                risk += 1f;
             }
             log.info("VPN provider lookup took {}ms", System.currentTimeMillis() - started); // Debug
             
@@ -294,7 +296,7 @@ public final class AddressService {
                 ip, // The IP address
                 IPUtils.getIpType(ip), // Get the IP type
                 risk, // The risk score we calculated
-                vpnProvider, // Is the IP from a VPN provider?
+                serviceProvider, // Is the IP from a VPN provider?
                 blacklists, // The blacklists the IP may be apart of
                 asnData, // The ASN data of the IP
                 geographicalData // The geographical data of the IP

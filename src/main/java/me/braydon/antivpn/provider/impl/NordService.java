@@ -4,12 +4,11 @@ import lombok.NonNull;
 import me.braydon.antivpn.common.IPUtils;
 import me.braydon.antivpn.common.StringUtils;
 import me.braydon.antivpn.common.WebRequest;
-import me.braydon.antivpn.metric.MetricService;
-import me.braydon.antivpn.provider.VPNServiceProvider;
+import me.braydon.antivpn.provider.ServiceProvider;
+import me.braydon.antivpn.provider.scrape.TimedScrapeTask;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -24,7 +23,7 @@ import java.util.concurrent.TimeUnit;
  * @author Braydon
  */
 @Service
-public final class NordService extends VPNServiceProvider {
+public final class NordService extends ServiceProvider {
     private static final String CONFIGS_PAGE = "https://nordvpn.com/ovpn/";
     private static final String DNS_REGEX = "^[^.]+\\.nordvpn\\.com$"; // The DNS server regex pattern
     
@@ -33,9 +32,8 @@ public final class NordService extends VPNServiceProvider {
      */
     @NonNull private Set<String> dns = new HashSet<>();
     
-    @Autowired
-    public NordService(@NonNull MetricService metrics) {
-        super("NordVPN", TimeUnit.DAYS.toMillis(7L), metrics);
+    public NordService() {
+        super(2, "NordVPN", TimeUnit.DAYS.toMillis(7L));
     }
     
     /**
@@ -83,7 +81,7 @@ public final class NordService extends VPNServiceProvider {
             // Add the IP to the list
             dns.parallelStream().forEach(dns -> {
                 try {
-                    IPUtils.getIpFromDns(dns, this::addIp);
+                    IPUtils.getIpFromHostname(dns, this::addIp);
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 }

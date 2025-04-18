@@ -12,8 +12,8 @@ import me.braydon.antivpn.metric.impl.RequestTracker;
 import me.braydon.antivpn.model.APIKey;
 import me.braydon.antivpn.model.AddressData;
 import me.braydon.antivpn.model.Blacklist;
-import me.braydon.antivpn.provider.VPNServiceProvider;
-import me.braydon.antivpn.repository.blacklist.BlacklistRepository;
+import me.braydon.antivpn.provider.ServiceProvider;
+import me.braydon.antivpn.repository.BlacklistRepository;
 import me.braydon.antivpn.service.AddressService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -144,9 +144,9 @@ public class AddressController {
         // Stat to show IPs per provider
         JsonObject ipsJsonObject = new JsonObject();
         int total = 0;
-        for (Map.Entry<String, Integer> entry : VPNServiceProvider.getProviderIpCounts(jedisFactory).entrySet()) {
-            int ipCount = entry.getValue();
-            ipsJsonObject.addProperty(entry.getKey(), ipCount);
+        for (ServiceProvider serviceProvider : ServiceProvider.getRegistry()) {
+            int ipCount = serviceProvider.getIps(true);
+            ipsJsonObject.addProperty(serviceProvider.getName(), ipCount);
             total += ipCount;
         }
         ipsJsonObject.addProperty("total", total); // Adding the total ip count

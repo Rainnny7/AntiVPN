@@ -1,14 +1,14 @@
 package me.braydon.antivpn.model;
 
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.Setter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.common.RateLimiter;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
+import me.braydon.antivpn.repository.APIKeyRepository;
 
+import javax.persistence.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -18,12 +18,13 @@ import java.util.concurrent.TimeUnit;
  *
  * @author Braydon
  */
-@Document("apiKeys")
-@AllArgsConstructor
+@Entity
+@Table(name = "apikeys")
+@Setter
 @Getter
 @ToString
 @Slf4j(topic = "API Key")
-public final class APIKey {
+public class APIKey {
     /**
      * The default rate limits to use.
      */
@@ -49,14 +50,14 @@ public final class APIKey {
     private static final Map<String, Map<TimeUnit, RateLimiter>> RATE_LIMITERS = Collections.synchronizedMap(new HashMap<>());
     
     /**
-     * The API key.
+     * The API key secret.
      */
-    @Id @NonNull private final String key;
+    @Id @NonNull private String secret;
     
     /**
      * The description of this API key.
      */
-    @NonNull private final String description;
+    @NonNull private String description;
     
     /**
      * The rate limits for this API key.
@@ -67,14 +68,25 @@ public final class APIKey {
      *
      * @see TimeUnit for time unit
      */
-    @NonNull private final ConcurrentHashMap<TimeUnit, Integer> rateLimits;
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "apikey_ratelimits")
+    @MapKeyEnumerated(EnumType.STRING)
+    @MapKeyColumn(name = "limiter_timeunit")
+    @Column(name = "limiter_limit")
+    @NonNull
+    private Map<TimeUnit, Integer> rateLimits;
     
     /**
      * The permissions this API key has.
      *
      * @see Permission for permissions
      */
-    @NonNull private final Set<Permission> permissions;
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "apikey_permissions")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "apikey_permission")
+    @NonNull
+    private Set<Permission> permissions;
     
     /**
      * Whether this API key is banned.
@@ -94,7 +106,7 @@ public final class APIKey {
     /**
      * The {@link Date} this API key was created.
      */
-    @NonNull private final Date creation;
+    @NonNull private Date creation;
     
     /**
      * Check if this API key has
@@ -121,7 +133,7 @@ public final class APIKey {
      * </p>
      */
     public void use() {
-        Map<TimeUnit, RateLimiter> rateLimiters = RATE_LIMITERS.getOrDefault(key, new HashMap<>());
+        Map<TimeUnit, RateLimiter> rateLimiters = RATE_LIMITERS.getOrDefault(secret, new HashMap<>());
         boolean modifiedRateLimiters = false; // Whether the rate limiters were modified
         
         // Update the rate limiters
@@ -145,14 +157,14 @@ public final class APIKey {
                 banned = new Date(); // Set the banned date
                 rateLimiters.clear(); // Clear the rate limiters to refresh them
                 modifiedRateLimiters = true; // We modified the rate limiters
-                log.info("API key {} was banned for excessively exceeding the rate limit", key); // Log the ban
+                log.info("API key {} was banned for excessively exceeding the rate limit", secret); // Log the ban
             }
         }
         if (modifiedRateLimiters) { // Update the rate limiters if we modified them
             if (rateLimiters.isEmpty()) { // Remove the rate limiters if they are empty
-                RATE_LIMITERS.remove(key);
+                RATE_LIMITERS.remove(secret);
             } else { // Update the rate limiters
-                RATE_LIMITERS.put(key, rateLimiters);
+                RATE_LIMITERS.put(secret, rateLimiters);
             }
         }
         uses++;
@@ -165,7 +177,7 @@ public final class APIKey {
      * @return true if limited, otherwise false
      */
     public boolean checkRateLimit() {
-        for (Map.Entry<TimeUnit, RateLimiter> entry : RATE_LIMITERS.get(key).entrySet()) {
+        for (Map.Entry<TimeUnit, RateLimiter> entry : RATE_LIMITERS.get(secret).entrySet()) {
             RateLimiter rateLimiter = entry.getValue();
             if (rateLimiter.tryAcquire()) { // We can acquire a token for this rate limiter
                 continue;
@@ -192,17 +204,17 @@ public final class APIKey {
      * @return the api key
      */
     @NonNull
-    public static APIKey generate(@NonNull String description, @NonNull APIKey.Permission... permissions) {
-        return new APIKey(
-            UUID.randomUUID().toString(),
-            description,
-            DEFAULT_RATE_LIMITS,
-            Set.of(permissions),
-            null,
-            0,
-            null,
-            new Date()
-        );
+    public static APIKey generate(@NonNull APIKeyRepository apiKeyRepository, @NonNull String description, @NonNull Permission... permissions) {
+        APIKey apiKey = new APIKey();
+        apiKey.setSecret(UUID.randomUUID().toString()); // Use a random UUID as the API key
+        apiKey.setDescription(description);
+        apiKey.setRateLimits(DEFAULT_RATE_LIMITS);
+        apiKey.setPermissions(Set.of(permissions));
+        apiKey.setBanned(null);
+        apiKey.setUses(0);
+        apiKey.setLastUsed(null);
+        apiKey.setCreation(new Date());
+        return apiKeyRepository.save(apiKey);
     }
     
     public enum Permission {

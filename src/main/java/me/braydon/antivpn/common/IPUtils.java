@@ -3,7 +3,6 @@ package me.braydon.antivpn.common;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.experimental.UtilityClass;
-import lombok.extern.slf4j.Slf4j;
 import org.xbill.DNS.Record;
 import org.xbill.DNS.*;
 
@@ -13,7 +12,7 @@ import java.util.function.Consumer;
 /**
  * @author Braydon
  */
-@UtilityClass @Slf4j(topic = "IP Utils")
+@UtilityClass
 public final class IPUtils {
     /**
      * The regex expression for validating IPv4 addresses.
@@ -39,13 +38,11 @@ public final class IPUtils {
     @NonNull
     public static String getRealIp(@NonNull HttpServletRequest request) {
         String ip = request.getRemoteAddr();
-        log.info("Remote IP: {}", ip); // Debugging
         for (String headerName : IP_HEADERS) {
             String header = request.getHeader(headerName);
             if (header == null) {
                 continue;
             }
-            log.info("{} = {}", headerName, header); // Debugging
             if (!header.contains(",")) { // Handle single IP
                 ip = header;
                 break;
@@ -57,7 +54,6 @@ public final class IPUtils {
                 break;
             }
         }
-        log.info("Remote IP: {}", ip); // Debugging
         return ip;
     }
     
@@ -94,20 +90,20 @@ public final class IPUtils {
     }
     
     /**
-     * Get the IP target of
-     * the given DNS server.
+     * Get the IP from the given hostname
+     * by looking up the DNS records.
      *
-     * @param dns      the dns
-     * @param callback the callback which supplies the target
+     * @param hostname the hostname
+     * @param callback the callback which supplies the ip
      */
     @SneakyThrows
-    public static void getIpFromDns(@NonNull String dns, @NonNull Consumer<String> callback) {
+    public static void getIpFromHostname(@NonNull String hostname, @NonNull Consumer<String> callback) {
         try {
-            Lookup lookup = new Lookup(dns, Type.A);
-            lookup.setResolver(new SimpleResolver("1.1.1.1"));
-            Record[] records = lookup.run();
+            Lookup lookup = new Lookup(hostname, Type.A); // Get all A records for the hostname
+            lookup.setResolver(new SimpleResolver("1.1.1.1")); // Use Cloudflare's DNS
+            Record[] records = lookup.run(); // Run the lookup
             if (records == null) { // Error when retrieving DNS records
-                throw new NullPointerException("DNS A records are null for " + dns);
+                throw new NullPointerException("DNS A records are null for " + hostname);
             }
             for (Record record : records) {
                 String value = record.rdataToString(); // The value of the record

@@ -49,7 +49,7 @@ public class WebSecurityConfig {
     /**
      * The {@link APIKeyRepository} to use.
      */
-    @NonNull private final APIKeyRepository repository;
+    @NonNull private final APIKeyRepository apiKeyRepository;
     
     /**
      * The {@link MetricService} to use.
@@ -62,8 +62,8 @@ public class WebSecurityConfig {
     private final Map<String, Tuple<RateLimiter, Long>> ipRateLimiters = new HashMap<>();
     
     @Autowired
-    public WebSecurityConfig(@NonNull APIKeyRepository repository, @NonNull MetricService metrics) {
-        this.repository = repository;
+    public WebSecurityConfig(@NonNull APIKeyRepository apiKeyRepository, @NonNull MetricService metrics) {
+        this.apiKeyRepository = apiKeyRepository;
         this.metrics = metrics;
         
         // Remove IP rate limiters after inactivity to free up memory
@@ -87,7 +87,7 @@ public class WebSecurityConfig {
             }
             // Log the API key being used
             log.info(String.format("API key '%s' was used (desc=%s, uses=%s)",
-                apiKey.getKey(),
+                apiKey.getSecret(),
                 apiKey.getDescription(),
                 apiKey.getUses()
             ));
@@ -97,20 +97,20 @@ public class WebSecurityConfig {
             }
             // Updating the API key
             apiKey.use(); // API key was used
-            repository.save(apiKey); // Save the API key
+            apiKeyRepository.save(apiKey); // Save the API key
             authentication.setAuthenticated(true); // Mark the session as authenticated
             return authentication;
         });
         // Create a default API key if none exist
-        if (repository.count() == 0) {
-            APIKey apiKey = APIKey.generate("First API Key", APIKey.Permission.values()); // Generate the API key
+        if (apiKeyRepository.count() == 0) {
+            APIKey apiKey = APIKey.generate(apiKeyRepository, "First API Key", APIKey.Permission.values()); // Generate the API key
             Set<APIKey.Permission> permissions = apiKey.getPermissions(); // The permissions of the API key
-            repository.save(apiKey); // Save the API key
+            apiKeyRepository.save(apiKey); // Save the API key
             
             // Log the creation
             log.info("-".repeat(65));
             log.info("Default API key created: {}",
-                apiKey.getKey()
+                apiKey.getSecret()
             );
             if (!permissions.isEmpty()) { // Log the permissions
                 log.info("Permissions ({}):", permissions.size());
@@ -160,7 +160,7 @@ public class WebSecurityConfig {
             long before = System.currentTimeMillis();
             try {
                 if (principal != null) { // API key provided, look it up
-                    apiKey = repository.findByKey(principal);
+                    apiKey = apiKeyRepository.findById(principal).orElse(null);
                 } else { // No API key provided, check rate limit
                     checkRatelimit(request);
                 }

@@ -1,6 +1,7 @@
 package me.braydon.antivpn.common;
 
 import lombok.NonNull;
+import lombok.experimental.UtilityClass;
 
 import java.text.CharacterIterator;
 import java.text.StringCharacterIterator;
@@ -8,6 +9,7 @@ import java.text.StringCharacterIterator;
 /**
  * @author Braydon
  */
+@UtilityClass
 public final class MemoryFormatter {
     /**
      * Format the bytes to a human-readable format.

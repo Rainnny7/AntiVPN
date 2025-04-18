@@ -14,7 +14,7 @@ import java.io.Serializable;
 import java.util.Set;
 
 /**
- * A cache for {@link AddressService.AddressData}.
+ * A cache for {@link AddressData}.
  *
  * @author Braydon
  */

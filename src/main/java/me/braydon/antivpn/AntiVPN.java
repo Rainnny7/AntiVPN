@@ -103,6 +103,11 @@ public class AntiVPN {
         THREAD_POOL = Executors.newFixedThreadPool(threads, task -> {
             return new Thread(task, "AntiVPN #" + (INDEXED_THREAD_COUNT++)); // Create a new thread
         });
+        log.info("Created a thread pool with {} threads, max threads is {}",
+            threads,
+            Runtime.getRuntime().availableProcessors()
+        ); // Log the pool creation
+        
         development = dev; // Are we using a development environment?
     }
     
