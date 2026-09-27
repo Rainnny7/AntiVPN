@@ -1,0 +1,38 @@
+name: Live sources
+
+# Fetches every detection source from upstream, to catch
+# format changes and dead endpoints before they cause stale data
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays at 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: Fetch every source
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Run live tests
+        run: ./mvnw -B test -Plive
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-test-reports
+          path: target/surefire-reports/
+          retention-days: 14
