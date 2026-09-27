@@ -1,0 +1,73 @@
+# Networks that only host servers. A client IP from one of these
+# is almost never a person on a home or mobile connection.
+#
+# Deliberately excluded because they also carry residential, mobile
+# or relay traffic: Google (AS15169), Microsoft (AS8075),
+# Cloudflare (AS13335, WARP), Akamai (AS20940, AS16625, AS36183),
+# Fastly (AS54113) and transit networks such as Cogent (AS174).
+#
+# Format: <asn> # <name>
+
+# Major clouds
+16509 # Amazon Web Services
+14618 # Amazon Web Services
+396982 # Google Cloud
+31898 # Oracle Cloud
+36351 # IBM Cloud (SoftLayer)
+45102 # Alibaba Cloud
+132203 # Tencent Cloud
+
+# VPS and dedicated hosting
+14061 # DigitalOcean
+63949 # Akamai Connected Cloud (Linode)
+20473 # Vultr (The Constant Company)
+24940 # Hetzner Online
+213230 # Hetzner Online
+212317 # Hetzner Online
+16276 # OVHcloud
+12876 # Scaleway
+51167 # Contabo
+197540 # netcup
+8560 # IONOS
+8972 # Host Europe (PlusServer)
+60781 # Leaseweb Netherlands
+28753 # Leaseweb Germany
+30633 # Leaseweb USA
+59253 # Leaseweb Asia Pacific
+7203 # Leaseweb USA
+22612 # Namecheap
+47583 # Hostinger
+26496 # GoDaddy
+26347 # DreamHost
+53667 # FranTech Solutions (BuyVM)
+29802 # HIVELOCITY
+32097 # WholeSale Internet
+23470 # ReliableSite
+40676 # Psychz Networks
+55286 # ServerMania
+21859 # Zenlayer
+8100 # QuadraNet
+36352 # ColoCrossing
+46562 # Performive
+35916 # Multacom
+25369 # Hydra Communications
+11878 # tzulo
+3223 # Voxility
+49981 # WorldStream
+50673 # Serverius
+57043 # HostKey
+42831 # UK Dedicated Servers
+20860 # Iomart
+9370 # SAKURA Internet
+62240 # Clouvider
+210644 # AEZA Group
+44477 # Stark Industries Solutions
+202425 # IP Volume
+206264 # Amarutu Technology
+
+# Networks that mostly host VPN and proxy servers
+9009 # M247
+60068 # Datacamp (CDN77)
+212238 # Datacamp
+136787 # TEFINCOM (NordVPN)
+39351 # 31173 Services (Mullvad)
