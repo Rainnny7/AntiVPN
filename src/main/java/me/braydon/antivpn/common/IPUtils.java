@@ -1,13 +1,19 @@
 package me.braydon.antivpn.common;
 
+import inet.ipaddr.AddressStringParameters;
+import inet.ipaddr.IPAddress;
+import inet.ipaddr.IPAddressString;
+import inet.ipaddr.IPAddressStringParameters;
 import lombok.NonNull;
-import lombok.SneakyThrows;
 import lombok.experimental.UtilityClass;
-import org.xbill.DNS.Record;
 import org.xbill.DNS.*;
+import org.xbill.DNS.Record;
 
-import javax.servlet.http.HttpServletRequest;
-import java.util.function.Consumer;
+import java.net.UnknownHostException;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * @author Braydon
@@ -15,102 +21,180 @@ import java.util.function.Consumer;
 @UtilityClass
 public final class IPUtils {
     /**
-     * The regex expression for validating IPv4 addresses.
+     * Only accept the standard notations, the library defaults also accept
+     * inet_aton shorthand (1.2.3 = 1.2.0.3), wildcards and ranges.
+     * <p>
+     * Must be initialized before {@link #RESERVED}, which is parsed with it.
+     * </p>
      */
-    public static final String IPV4_REGEX = "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$";
+    private static final IPAddressStringParameters PARSE_PARAMETERS = new IPAddressStringParameters.Builder()
+        .allowEmpty(false)
+        .allowAll(false)
+        .allowSingleSegment(false)
+        .allowPrefixOnly(false)
+        .allowWildcardedSeparator(false)
+        .allow_inet_aton(false)
+        .setRangeOptions(AddressStringParameters.RangeParameters.NO_RANGE)
+        .toParams();
     
     /**
-     * The regex expression for validating IPv6 addresses.
+     * Special-purpose ranges that never belong to a real client.
      */
-    public static final String IPV6_REGEX = "^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^(([0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4})?::(([0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4})?$";
-    
-    private static final String[] IP_HEADERS = new String[] {
-        "CF-Connecting-IP",
-        "X-Forwarded-For"
-    };
+    private static final IpRangeIndex RESERVED = IpRangeIndex.of(List.of(
+        // IPv4
+        "0.0.0.0/8",
+        "10.0.0.0/8",
+        "100.64.0.0/10",
+        "127.0.0.0/8",
+        "169.254.0.0/16",
+        "172.16.0.0/12",
+        "192.0.0.0/24",
+        "192.0.2.0/24",
+        "192.31.196.0/24",
+        "192.52.193.0/24",
+        "192.88.99.0/24",
+        "192.168.0.0/16",
+        "192.175.48.0/24",
+        "198.18.0.0/15",
+        "198.51.100.0/24",
+        "203.0.113.0/24",
+        "224.0.0.0/4",
+        "240.0.0.0/4",
+        
+        // IPv6
+        "::/128",
+        "::1/128",
+        "64:ff9b:1::/48",
+        "100::/64",
+        "2001:db8::/32",
+        "3fff::/20",
+        "5f00::/16",
+        "fc00::/7",
+        "fe80::/10",
+        "fec0::/10",
+        "ff00::/8"
+    ));
     
     /**
-     * Get the real IP from the given request.
+     * The DNS resolver to use for provider hostname lookups.
+     */
+    private static final Resolver RESOLVER = createResolver();
+    
+    /**
+     * Parse the given input as an IP address, or a CIDR block.
+     * <p>
+     * IPv4-mapped IPv6 addresses (e.g. ::ffff:1.2.3.4)
+     * are normalized to their IPv4 form.
+     * </p>
      *
-     * @param request the request
-     * @return the real IP
+     * @param input the input
+     * @return the parsed address, empty if invalid
      */
     @NonNull
-    public static String getRealIp(@NonNull HttpServletRequest request) {
-        String ip = request.getRemoteAddr();
-        for (String headerName : IP_HEADERS) {
-            String header = request.getHeader(headerName);
-            if (header == null) {
-                continue;
-            }
-            if (!header.contains(",")) { // Handle single IP
-                ip = header;
-                break;
-            }
-            // Handle multiple IPs
-            String[] ips = header.split(",");
-            for (String ipHeader : ips) {
-                ip = ipHeader;
-                break;
-            }
+    public static Optional<IPAddress> parse(String input) {
+        if (input == null) {
+            return Optional.empty();
         }
-        return ip;
+        String trimmed = input.trim();
+        if (trimmed.isEmpty()) {
+            return Optional.empty();
+        }
+        IPAddress address = new IPAddressString(trimmed, PARSE_PARAMETERS).getAddress();
+        if (address == null) {
+            return Optional.empty();
+        }
+        if (address.isIPv6() && address.toIPv6().isIPv4Mapped()) {
+            address = address.toIPv6().getEmbeddedIPv4Address();
+        }
+        return Optional.of(address);
+    }
+    
+    /**
+     * Parse the given input as a single IP address (no prefix length).
+     *
+     * @param input the input
+     * @return the parsed address, empty if invalid or a CIDR block
+     */
+    @NonNull
+    public static Optional<IPAddress> parseAddress(String input) {
+        return parse(input).filter(address -> !address.isPrefixed() && !address.isMultiple());
     }
     
     /**
      * Get the IP type of the given input.
      *
      * @param input the input
-     * @return the IP type
+     * @return 4 or 6, or -1 if the input is not an IP address
      */
     public static int getIpType(@NonNull String input) {
-        return isIpV4(input) ? 4 : isIpV6(input) ? 6 : -1;
+        return parseAddress(input).map(IPUtils::getIpType).orElse(-1);
     }
     
     /**
-     * Check if the given input is
-     * a valid IPv4 address.
+     * Get the IP type of the given address.
      *
-     * @param input the input
-     * @return true if IPv4, otherwise false
+     * @param address the address
+     * @return 4 or 6
      */
-    public static boolean isIpV4(@NonNull String input) {
-        return input.matches(IPV4_REGEX);
+    public static int getIpType(@NonNull IPAddress address) {
+        return address.isIPv4() ? 4 : 6;
     }
     
     /**
-     * Check if the given input is
-     * a valid IPv6 address.
+     * Check if the given address or block is in
+     * (or overlaps) a private or reserved range.
      *
-     * @param input the input
-     * @return true if IPv6, otherwise false
+     * @param address the address or block
+     * @return true if reserved, otherwise false
      */
-    public static boolean isIpV6(@NonNull String input) {
-        return input.matches(IPV6_REGEX);
+    public static boolean isReserved(@NonNull IPAddress address) {
+        return RESERVED.overlaps(address);
     }
     
     /**
-     * Get the IP from the given hostname
-     * by looking up the DNS records.
+     * Resolve the A and AAAA records of the given hostname.
      *
      * @param hostname the hostname
-     * @param callback the callback which supplies the ip
+     * @return the resolved addresses
+     * @throws UnknownHostException if the hostname has no records
      */
-    @SneakyThrows
-    public static void getIpFromHostname(@NonNull String hostname, @NonNull Consumer<String> callback) {
+    @NonNull
+    public static List<String> resolveHostname(@NonNull String hostname) throws UnknownHostException {
+        List<String> addresses = new ArrayList<>();
         try {
-            Lookup lookup = new Lookup(hostname, Type.A); // Get all A records for the hostname
-            lookup.setResolver(new SimpleResolver("1.1.1.1")); // Use Cloudflare's DNS
-            Record[] records = lookup.run(); // Run the lookup
-            if (records == null) { // Error when retrieving DNS records
-                throw new NullPointerException("DNS A records are null for " + hostname);
-            }
-            for (Record record : records) {
-                String value = record.rdataToString(); // The value of the record
-                callback.accept(value); // Run the callback
+            for (int type : new int[] { Type.A, Type.AAAA }) {
+                Lookup lookup = new Lookup(hostname, type);
+                lookup.setResolver(RESOLVER);
+                lookup.setCache(null);
+                Record[] records = lookup.run();
+                if (records == null) {
+                    continue;
+                }
+                for (Record record : records) {
+                    if (record instanceof ARecord aRecord) {
+                        addresses.add(aRecord.getAddress().getHostAddress());
+                    } else if (record instanceof AAAARecord aaaaRecord) {
+                        addresses.add(aaaaRecord.getAddress().getHostAddress());
+                    }
+                }
             }
         } catch (TextParseException ex) {
-            ex.printStackTrace();
+            throw new UnknownHostException("Invalid hostname: " + hostname);
+        }
+        if (addresses.isEmpty()) {
+            throw new UnknownHostException("No A or AAAA records for " + hostname);
+        }
+        return addresses;
+    }
+    
+    @NonNull
+    private static Resolver createResolver() {
+        try {
+            SimpleResolver resolver = new SimpleResolver("1.1.1.1"); // Use Cloudflare's DNS
+            resolver.setTimeout(Duration.ofSeconds(5L));
+            return resolver;
+        } catch (UnknownHostException ex) {
+            throw new IllegalStateException(ex);
         }
     }
 }
