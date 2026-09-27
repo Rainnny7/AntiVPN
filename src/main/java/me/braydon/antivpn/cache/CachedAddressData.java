@@ -52,13 +52,18 @@ public class CachedAddressData implements Serializable {
     private final String generation;
     
     /**
-     * Check if this cache has lookup data.
+     * Check if this cache includes all the given lookup data.
+     * <p>
+     * Redis doesn't store empty collections, so an entry
+     * cached without lookup data comes back as null.
+     * </p>
      *
-     * @return true if it has lookup data, otherwise false
+     * @param requested the requested lookup data
+     * @return true if every requested type is cached, otherwise false
      * @see #lookupData for lookup data
      */
-    public boolean hasLookupData() {
-        return lookupData != null;
+    public boolean covers(@NonNull Set<AddressService.LookupData> requested) {
+        return lookupData == null ? requested.isEmpty() : lookupData.containsAll(requested);
     }
     
     /**

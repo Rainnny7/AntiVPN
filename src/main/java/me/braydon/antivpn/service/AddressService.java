@@ -171,7 +171,7 @@ public class AddressService {
             if (!generation.equals(cache.getGeneration())) { // Computed with older detection data
                 return Optional.empty();
             }
-            if (!cache.hasLookupData() || !cache.getLookupData().containsAll(data)) { // Missing data we need
+            if (!cache.covers(data)) { // Missing data we need
                 return Optional.empty();
             }
             AddressData addressData = AntiVPN.GSON.fromJson(cache.getJson(), AddressData.class);
