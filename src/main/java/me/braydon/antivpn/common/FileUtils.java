@@ -5,11 +5,11 @@ import lombok.experimental.UtilityClass;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
-import org.apache.commons.compress.utils.IOUtils;
 
 import java.io.*;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -19,6 +19,10 @@ import java.util.Set;
 public final class FileUtils {
     /**
      * Extract a tar file.
+     * <p>
+     * Directory structure is flattened, every file
+     * is written straight into the destination.
+     * </p>
      *
      * @param tarFile     the tar file
      * @param destination the destination directory to extract to
@@ -38,27 +42,24 @@ public final class FileUtils {
              TarArchiveInputStream tarArchiveInputStream = new TarArchiveInputStream(gzipCompressorInputStream)
         ) {
             TarArchiveEntry entry; // The current entry
-            while ((entry = tarArchiveInputStream.getNextTarEntry()) != null) { // Iterate over the entries
+            while ((entry = tarArchiveInputStream.getNextEntry()) != null) { // Iterate over the entries
                 if (!entry.isFile()) { // Ignore directories
                     continue;
                 }
                 String fileName = entry.getName(); // The name of the file
                 fileName = fileName.substring(fileName.lastIndexOf("/") + 1); // Remove the path
-                if (!fileName.contains(".")) { // Doesn't have an extension
+                int dot = fileName.lastIndexOf('.');
+                if (dot < 0) { // Doesn't have an extension
                     continue;
                 }
-                String extension = fileName.split("\\.")[1].toLowerCase(); // The extension of the file
-                if (extensionsSet == null || (extensionsSet.contains("." + extension))) { // Get all or specific files
+                String extension = fileName.substring(dot).toLowerCase(Locale.ROOT); // The extension of the file
+                if (extensionsSet == null || extensionsSet.contains(extension)) { // Get all or specific files
                     File outputFile = new File(destination, fileName); // The output file
                     try (OutputStream outputFileStream = new FileOutputStream(outputFile)) {
-                        IOUtils.copy(tarArchiveInputStream, outputFileStream); // Copy the file to the output
-                    } catch (IOException ex) {
-                        ex.printStackTrace();
+                        tarArchiveInputStream.transferTo(outputFileStream); // Copy the file to the output
                     }
                 }
             }
-        } catch (IOException ex) {
-            ex.printStackTrace();
         }
     }
 }
