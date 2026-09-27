@@ -1,194 +1,176 @@
 package me.braydon.antivpn.config;
 
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import me.braydon.antivpn.common.IPUtils;
+import me.braydon.antivpn.common.ClientIpResolver;
 import me.braydon.antivpn.common.RateLimiter;
-import me.braydon.antivpn.common.Tuple;
-import me.braydon.antivpn.exception.impl.RateLimitException;
+import me.braydon.antivpn.exception.ErrorResponses;
 import me.braydon.antivpn.metric.MetricService;
 import me.braydon.antivpn.metric.impl.DatabaseTracker;
 import me.braydon.antivpn.model.APIKey;
 import me.braydon.antivpn.repository.APIKeyRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.preauth.AbstractPreAuthenticatedProcessingFilter;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.filter.OncePerRequestFilter;
 
-import javax.servlet.http.HttpServletRequest;
-import java.util.*;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Responsible for requiring authentication using
- * {@link APIKey}'s on routes that match "/v{version}/**".
+ * Responsible for requiring authentication
+ * using {@link APIKey}'s on all private routes.
  *
  * @author Braydon
  */
 @Configuration
 @EnableWebSecurity
 @Slf4j(topic = "Security")
-@Order(Ordered.HIGHEST_PRECEDENCE)
 public class WebSecurityConfig {
+    /**
+     * Routes that can be used without an API key.
+     */
+    private static final String[] PUBLIC_ROUTES = { "/error", "/amiusingavpn", "/actuator/health", "/actuator/health/**" };
+    
+    /**
+     * The amount of requests per minute an IP can make without an API key.
+     */
+    private static final int ANONYMOUS_REQUESTS_PER_MINUTE = 100;
+    
     /**
      * The name of the header to
      * use to check for the API key.
      */
-    @Value("${auth.header}")
+    @Value("${auth.header:X-API-Key}")
     private String authHeader;
     
-    /**
-     * The {@link APIKeyRepository} to use.
-     */
     @NonNull private final APIKeyRepository apiKeyRepository;
-    
-    /**
-     * The {@link MetricService} to use.
-     */
     @NonNull private final MetricService metrics;
+    @NonNull private final ClientIpResolver clientIpResolver;
     
     /**
-     * The {@link RateLimiter}s for each IP address.
+     * The {@link RateLimiter}s for each IP address without an API key.
      */
-    private final Map<String, Tuple<RateLimiter, Long>> ipRateLimiters = new HashMap<>();
+    @NonNull private final Map<String, AnonymousLimiter> ipRateLimiters = new ConcurrentHashMap<>();
     
-    @Autowired
-    public WebSecurityConfig(@NonNull APIKeyRepository apiKeyRepository, @NonNull MetricService metrics) {
+    public WebSecurityConfig(@NonNull APIKeyRepository apiKeyRepository, @NonNull MetricService metrics,
+                             @NonNull ClientIpResolver clientIpResolver) {
         this.apiKeyRepository = apiKeyRepository;
         this.metrics = metrics;
-        
-        // Remove IP rate limiters after inactivity to free up memory
-        new Timer().scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                ipRateLimiters.entrySet()
-                    .removeIf(entry -> System.currentTimeMillis() - entry.getValue().getRight() > TimeUnit.MINUTES.toMillis(5L));
-            }
-        }, TimeUnit.MINUTES.toMillis(3L), TimeUnit.MINUTES.toMillis(3L));
+        this.clientIpResolver = clientIpResolver;
     }
     
     @Bean @NonNull
     public SecurityFilterChain filterChain(@NonNull HttpSecurity http) throws Exception {
-        KeyFilter filter = new KeyFilter();
-        filter.setAuthenticationManager(authentication -> {
-            String principal = (String) authentication.getPrincipal(); // The provided API key
+        KeyFilter keyFilter = new KeyFilter();
+        keyFilter.setSecurityContextRepository(new RequestAttributeSecurityContextRepository());
+        keyFilter.setAuthenticationManager(authentication -> {
             APIKey apiKey = (APIKey) authentication.getCredentials();
             if (apiKey == null) { // No API key found
-                throw new BadCredentialsException(String.format("Invalid API key: %s", principal));
+                throw new BadCredentialsException("Invalid API key");
             }
-            // Log the API key being used
-            log.info(String.format("API key '%s' was used (desc=%s, uses=%s)",
-                apiKey.getSecret(),
-                apiKey.getDescription(),
-                apiKey.getUses()
-            ));
-            // API key is banned
             if (apiKey.isBanned()) { // API key is banned
                 throw new BadCredentialsException("API key is banned");
             }
-            // Updating the API key
+            log.debug("API key '{}' was used (desc={}, uses={})", APIKey.mask(apiKey.getSecret()), apiKey.getDescription(), apiKey.getUses());
             apiKey.use(); // API key was used
             apiKeyRepository.save(apiKey); // Save the API key
             authentication.setAuthenticated(true); // Mark the session as authenticated
             return authentication;
         });
-        // Create a default API key if none exist
-        if (apiKeyRepository.count() == 0) {
-            APIKey apiKey = APIKey.generate(apiKeyRepository, "First API Key", APIKey.Permission.values()); // Generate the API key
-            Set<APIKey.Permission> permissions = apiKey.getPermissions(); // The permissions of the API key
-            apiKeyRepository.save(apiKey); // Save the API key
-            
-            // Log the creation
-            log.info("-".repeat(65));
-            log.info("Default API key created: {}",
-                apiKey.getSecret()
-            );
-            if (!permissions.isEmpty()) { // Log the permissions
-                log.info("Permissions ({}):", permissions.size());
-                for (APIKey.Permission permission : permissions) {
-                    log.info("  - {}", permission);
-                }
-            }
-            log.info("-".repeat(65));
-        }
+        
         CorsConfiguration corsConfiguration = new CorsConfiguration();
         corsConfiguration.setAllowedOriginPatterns(List.of("*"));
         corsConfiguration.setAllowedMethods(List.of("GET", "POST", "DELETE"));
         corsConfiguration.setAllowedHeaders(List.of("Content-Type", authHeader));
-        corsConfiguration.setAllowCredentials(true);
-        for (String allowedOrigin : Objects.requireNonNull(corsConfiguration.getAllowedOriginPatterns())) { // Log the allowed origins
-            log.info("Allowed CORS origin: {}", allowedOrigin);
-        }
-        http.csrf().disable() // Disable CSRF
-            .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS) // No sessions
-            .and().authorizeRequests().antMatchers( // Permit access to some routes
-                "/error",
-                "/amiusingavpn"
-            ).permitAll()
-            .and() // Require authentication keys for all other routes
-            .addFilter(filter)
-            .authorizeRequests()
-            .anyRequest()
-            .authenticated() // Specific route permissions
-            .and().cors().configurationSource(request -> corsConfiguration); // Enable CORS
+        
+        http.csrf(AbstractHttpConfigurer::disable)
+            .sessionManagement(sessions -> sessions.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .cors(cors -> cors.configurationSource(request -> corsConfiguration))
+            .addFilter(keyFilter)
+            .addFilterBefore(new AnonymousRateLimitFilter(), AbstractPreAuthenticatedProcessingFilter.class)
+            .authorizeHttpRequests(requests -> requests
+                .requestMatchers(PUBLIC_ROUTES).permitAll()
+                .anyRequest().authenticated())
+            .exceptionHandling(exceptions -> exceptions
+                .authenticationEntryPoint((request, response, ex) ->
+                    ErrorResponses.write(request, response, HttpStatus.UNAUTHORIZED, "A valid API key is required in the " + authHeader + " header"))
+                .accessDeniedHandler((request, response, ex) ->
+                    ErrorResponses.write(request, response, HttpStatus.FORBIDDEN, "Access denied")));
         return http.build();
+    }
+    
+    /**
+     * Remove IP rate limiters after inactivity to free up memory.
+     */
+    @Scheduled(fixedDelay = 3L, timeUnit = TimeUnit.MINUTES)
+    public void cleanupRateLimiters() {
+        long cutoff = System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(5L);
+        ipRateLimiters.values().removeIf(limiter -> limiter.lastUsed < cutoff);
     }
     
     public final class KeyFilter extends AbstractPreAuthenticatedProcessingFilter {
         @Override
         protected String getPreAuthenticatedPrincipal(@NonNull HttpServletRequest request) {
-            String header = request.getHeader(authHeader);
-            if (header == null) { // No API key provided, check rate limit
-                checkRatelimit(request);
-            }
-            return header;
+            return request.getHeader(authHeader);
         }
         
         @Override
         protected APIKey getPreAuthenticatedCredentials(@NonNull HttpServletRequest request) {
             String principal = getPreAuthenticatedPrincipal(request); // The API key provided
-            APIKey apiKey = null;
+            if (principal == null || principal.isBlank()) {
+                return null;
+            }
             long before = System.currentTimeMillis();
             try {
-                if (principal != null) { // API key provided, look it up
-                    apiKey = apiKeyRepository.findById(principal).orElse(null);
-                } else { // No API key provided, check rate limit
-                    checkRatelimit(request);
-                }
+                return apiKeyRepository.findById(principal).orElse(null);
             } finally {
                 metrics.getTracker(DatabaseTracker.class).submitResponseTime(
-                    DatabaseTracker.DatabaseType.MONGODB, System.currentTimeMillis() - before); // Metrics
+                    DatabaseTracker.DatabaseType.MARIADB, System.currentTimeMillis() - before); // Metrics
             }
-            return apiKey;
         }
     }
     
     /**
-     * Handle rate limits for unauthorized requests.
-     *
-     * @param request the request to check
-     * @see HttpServletRequest for request
+     * Rate limits requests that don't provide an API key, by client IP.
      */
-    private void checkRatelimit(@NonNull HttpServletRequest request) {
-        String ip = IPUtils.getRealIp(request);
-        Tuple<RateLimiter, Long> tuple = ipRateLimiters.get(ip);
-        if (tuple == null) { // No rate limiter made yet
-            tuple = new Tuple<>(new RateLimiter(100, TimeUnit.MINUTES), System.currentTimeMillis());
-            ipRateLimiters.put(ip, tuple);
-        } else { // Last used the rate limiter
-            tuple.setRight(System.currentTimeMillis());
+    private final class AnonymousRateLimitFilter extends OncePerRequestFilter {
+        @Override
+        protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response,
+                                        @NonNull FilterChain chain) throws ServletException, IOException {
+            if (request.getHeader(authHeader) == null) {
+                String ip = clientIpResolver.resolve(request);
+                AnonymousLimiter limiter = ipRateLimiters.computeIfAbsent(ip, key -> new AnonymousLimiter());
+                limiter.lastUsed = System.currentTimeMillis();
+                if (!limiter.rateLimiter.tryAcquire()) { // IP is rate limited
+                    ErrorResponses.write(request, response, HttpStatus.TOO_MANY_REQUESTS, "Rate limit exceeded");
+                    return;
+                }
+            }
+            chain.doFilter(request, response);
         }
-        if (!tuple.getLeft().tryAcquire()) { // IP is rate limited
-            throw new RateLimitException();
-        }
+    }
+    
+    private static final class AnonymousLimiter {
+        private final RateLimiter rateLimiter = new RateLimiter(ANONYMOUS_REQUESTS_PER_MINUTE, TimeUnit.MINUTES);
+        private volatile long lastUsed = System.currentTimeMillis();
     }
 }

@@ -1,3 +1,6 @@
+# Every value can be overridden with an environment variable (e.g. MAXMIND_LICENSE),
+# or with an application.yml placed next to the jar or in ./config/.
+
 # Server Configuration
 server:
   address: 0.0.0.0
@@ -5,87 +8,110 @@ server:
   error:
     include-message: always
     include-binding-errors: always
-    include-stacktrace: on_param
+    include-stacktrace: never
     include-exception: false
 
-# The header to use when identifying API keys
 auth:
-  header: "X-API-Key"
+  header: "X-API-Key" # The header to use when identifying API keys
+  # An API key with every permission, created on start (at least 16 characters).
+  # Leave blank to generate a random key on first start instead, which is logged once.
+  admin-key: "${ADMIN_API_KEY:}"
 
-# Maxmind Configuration
+# Maxmind Configuration - https://www.maxmind.com/en/geolite2/signup
 maxmind:
-  license: "LICENSE_KEY"
+  account-id: "${MAXMIND_ACCOUNT_ID:}"
+  license: "${MAXMIND_LICENSE:}" # Leave blank to only use databases already in the directory
+  directory: "${MAXMIND_DIRECTORY:maxmind}"
 
-# GitHub Configuration - Used to scrape a public PIA repository for their servers
-github:
-  bearer: "" # Your GitHub bearer token
-  api-version: "2022-11-28" # The version of the GitHub API to use
-
-# InfluxDB Configuration - Used to store metrics
+# InfluxDB Configuration - Used to store metrics, leave the url blank to disable
 influxdb:
-  url: "https://influxdb.local.rainnny.club"
-  token: "YOUR_TOKEN"
-  org: "YOUR_ORG"
-  bucket: "YOUR_BUCKET"
+  url: "${INFLUXDB_URL:}"
+  token: "${INFLUXDB_TOKEN:}"
+  org: "${INFLUXDB_ORG:}"
+  bucket: "${INFLUXDB_BUCKET:}"
+
+# VPN Detection Configuration
+detection:
+  scheduling-enabled: true # Refresh sources on a schedule
+  snapshot-directory: "${DETECTION_SNAPSHOT_DIRECTORY:data/sources}" # The last good copy of each source
+  disabled-sources: [] # e.g. [ "x4b-datacenter", "aws" ]
+
+  # Reverse proxies whose X-Forwarded-For header is trusted, as CIDR blocks
+  trusted-proxies: []
+  trust-cloudflare: false # Trust CF-Connecting-IP when the request comes from Cloudflare's ranges
+
+  # Guards against bad upstream data
+  stale-after-multiplier: 3 # A source is ignored once its data is this many refresh intervals old...
+  min-stale-after: 24h # ...but never sooner than this
+  min-retained-ratio: 0.5 # Reject a refresh with fewer than half the entries of the last one
+  max-unsafe-ratio: 0.01 # Reject a refresh if over 1% of its entries are too broad or reserved
+
+  extra-hosting-asns: [] # ASNs to treat as hosting networks on top of the bundled list
+
+  # The risk each signal contributes, the strongest signal wins
+  weights:
+    vpn-confirmed: 1.0 # Listed by the VPN provider itself
+    vpn-likely: 0.75 # Listed by a third party
+    tor: 1.0
+    abuse: 0.9 # Spamhaus DROP
+    hosting: 0.5 # Datacenter or hosting network
+    relay: 0.1 # iCloud Private Relay, used by ordinary Apple users
+    asn-blacklist: 0.5 # Added on top when the ASN is blacklisted
+    country-blacklist: 0.4 # Added on top when the country is blacklisted
 
 # Log Configuration
 logging:
   file:
     path: "./logs"
 
+# Management Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health"
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 # Spring Configuration
 spring:
   # Database Configuration
   datasource:
-    url: jdbc:mariadb://127.0.0.1:3306/antivpn?useCompression=true&useServerPrepStmts=true&cachePrepStmts=true&rewriteBatchedStatements=true&autoReconnect=true
-    username: antivpn
-    password: p4$$w0rd
-    driver-class-name: org.mariadb.jdbc.Driver
-    type: com.zaxxer.hikari.HikariDataSource
+    url: "${DATABASE_URL:jdbc:mariadb://127.0.0.1:3306/antivpn?useCompression=true&useServerPrepStmts=true&cachePrepStmts=true&rewriteBatchedStatements=true}"
+    username: "${DATABASE_USERNAME:antivpn}"
+    password: "${DATABASE_PASSWORD:}"
     hikari:
       pool-name: antivpn
-      maximum-pool-size: 51
-      minimum-idle: 5
+      maximum-pool-size: 20
+      minimum-idle: 2
       idle-timeout: 60000
       max-lifetime: 1800000
-      connection-test-query: SELECT 1
       connection-timeout: 10000
       validation-timeout: 3000
   data:
-    # MongoDB - This is used to store persistent data, such as API keys.
-    mongodb:
-      uri: "mongodb://antivpn:p4$$w0rd@127.0.0.1:27017/antivpn?authSource=admin"
-      auto-index-creation: true # Automatically create collection indexes
-
     # Redis - This is used for caching
     redis:
-      host: "127.0.0.1"
-      port: 6379
+      host: "${REDIS_HOST:127.0.0.1}"
+      port: ${REDIS_PORT:6379}
       database: 0
-      auth: "" # Leave blank for no auth
+      password: "${REDIS_PASSWORD:}" # Leave blank for no auth
+      client-type: jedis
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: "update"
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.MariaDB102Dialect
-  #        generate_statistics: true
-  sql:
-    init:
-      mode: always
-  mvc:
-    application:
-      ipv4only: true
-
-  # Ignore
+  task:
+    scheduling:
+      pool:
+        size: 4
   application:
     name: "Rainnny's AntiVPN"
   banner:
     location: "classpath:banner.txt"
   autoconfigure:
-    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
 
-threads: 50 # The amount of threads the thread pool should use when ticking
-dev: true # Are we in a development environment?
-amiusingavpn: false # Enable this route?
-debug: false # Enable debug mode
+dev: false # Are we in a development environment? Includes stack traces in errors
+amiusingavpn: false # Enable the /amiusingavpn route?

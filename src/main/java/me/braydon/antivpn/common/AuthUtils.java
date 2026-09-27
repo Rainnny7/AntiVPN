@@ -6,7 +6,6 @@ import me.braydon.antivpn.exception.impl.APIException;
 import me.braydon.antivpn.exception.impl.RateLimitException;
 import me.braydon.antivpn.model.APIKey;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -20,8 +19,7 @@ public final class AuthUtils {
      * key has any of the given permissions.
      *
      * @param permissions the permissions
-     * @throws IllegalStateException if no API key is found
-     * @throws LockedException       if permissions are not met
+     * @throws APIException if no API key is found, or permissions are not met
      * @see APIKey for api key
      * @see APIKey.Permission for permission
      */
@@ -30,7 +28,7 @@ public final class AuthUtils {
         if (apiKey.hasPermission(permissions)) { // Has permissions, no need to throw an exception
             return;
         }
-        throw new APIException(HttpStatus.FORBIDDEN, new LockedException("Lacking permissions"));
+        throw new APIException(HttpStatus.FORBIDDEN, "Lacking permissions");
     }
     
     /**
@@ -50,16 +48,15 @@ public final class AuthUtils {
      * Get the currently authenticated API key.
      *
      * @return the api key
-     * @throws IllegalStateException if no API key is found
+     * @throws APIException if no API key is found
      * @see APIKey for api key
      */
     @NonNull
     public APIKey getCurrentAPIKey() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        Object credentials;
-        if (authentication != null && ((credentials = authentication.getCredentials()) != null)) { // Authentication
-            return (APIKey) credentials;
+        if (authentication != null && authentication.getCredentials() instanceof APIKey apiKey) { // Authentication
+            return apiKey;
         }
-        throw new IllegalStateException("No API key found in current session");
+        throw new APIException(HttpStatus.UNAUTHORIZED, "A valid API key is required");
     }
 }

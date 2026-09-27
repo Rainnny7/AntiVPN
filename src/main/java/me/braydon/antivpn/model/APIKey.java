@@ -8,7 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.common.RateLimiter;
 import me.braydon.antivpn.repository.APIKeyRepository;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 @Table(name = "apikeys")
 @Setter
 @Getter
-@ToString
+@ToString(exclude = "secret")
 @Slf4j(topic = "API Key")
 public class APIKey {
     /**
@@ -157,7 +157,7 @@ public class APIKey {
                 banned = new Date(); // Set the banned date
                 rateLimiters.clear(); // Clear the rate limiters to refresh them
                 modifiedRateLimiters = true; // We modified the rate limiters
-                log.info("API key {} was banned for excessively exceeding the rate limit", secret); // Log the ban
+                log.info("API key {} was banned for excessively exceeding the rate limit", mask(secret)); // Log the ban
             }
         }
         if (modifiedRateLimiters) { // Update the rate limiters if we modified them
@@ -177,7 +177,11 @@ public class APIKey {
      * @return true if limited, otherwise false
      */
     public boolean checkRateLimit() {
-        for (Map.Entry<TimeUnit, RateLimiter> entry : RATE_LIMITERS.get(secret).entrySet()) {
+        Map<TimeUnit, RateLimiter> rateLimiters = RATE_LIMITERS.get(secret);
+        if (rateLimiters == null) { // Not used yet, nothing to limit
+            return false;
+        }
+        for (Map.Entry<TimeUnit, RateLimiter> entry : rateLimiters.entrySet()) {
             RateLimiter rateLimiter = entry.getValue();
             if (rateLimiter.tryAcquire()) { // We can acquire a token for this rate limiter
                 continue;
@@ -205,16 +209,44 @@ public class APIKey {
      */
     @NonNull
     public static APIKey generate(@NonNull APIKeyRepository apiKeyRepository, @NonNull String description, @NonNull Permission... permissions) {
+        return apiKeyRepository.save(create(UUID.randomUUID().toString(), description, permissions)); // Use a random UUID as the API key
+    }
+    
+    /**
+     * Create a new, unsaved API key with the
+     * given secret and permissions.
+     *
+     * @param secret      the secret
+     * @param description the description
+     * @param permissions the permissions
+     * @return the api key
+     */
+    @NonNull
+    public static APIKey create(@NonNull String secret, @NonNull String description, @NonNull Permission... permissions) {
         APIKey apiKey = new APIKey();
-        apiKey.setSecret(UUID.randomUUID().toString()); // Use a random UUID as the API key
+        apiKey.setSecret(secret);
         apiKey.setDescription(description);
-        apiKey.setRateLimits(DEFAULT_RATE_LIMITS);
-        apiKey.setPermissions(Set.of(permissions));
+        apiKey.setRateLimits(new HashMap<>(DEFAULT_RATE_LIMITS));
+        apiKey.setPermissions(new HashSet<>(Set.of(permissions)));
         apiKey.setBanned(null);
         apiKey.setUses(0);
         apiKey.setLastUsed(null);
         apiKey.setCreation(new Date());
-        return apiKeyRepository.save(apiKey);
+        return apiKey;
+    }
+    
+    /**
+     * Mask the given API key secret for logging.
+     *
+     * @param secret the secret
+     * @return the masked secret
+     */
+    @NonNull
+    public static String mask(String secret) {
+        if (secret == null || secret.length() <= 4) {
+            return "****";
+        }
+        return secret.substring(0, 4) + "…";
     }
     
     public enum Permission {
