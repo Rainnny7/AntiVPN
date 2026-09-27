@@ -59,7 +59,6 @@ public class RateLimiter {
         } else if (tokens > 0) { // check if there are tokens available
             tokens--; // decrement the token count
             failedAttempts = 0; // Reset the failed attempts
-            previouslyRestricted = true; // We are now restricted
             return true; // allow the request
         } else {
             if (++failedAttempts >= MAX_FAILED_ATTEMPTS) { // Reached our max failed attempts
@@ -79,10 +78,18 @@ public class RateLimiter {
      * Refills the bucket with tokens based on the time elapsed since the last refill.
      */
     private void refill() {
-        long currentTime = System.currentTimeMillis(); // Cet the current time
-        long elapsedTime = currentTime - lastRefillTimestamp; // Calculate the time elapsed since the last refill
-        long tokensToAdd = elapsedTime * maxTokens / refillIntervalTimeUnit.toMillis(1L); // Calculate how many tokens should be added based on the elapsed time and the refill interval
-        tokens = Math.min(tokens + tokensToAdd, maxTokens); // Add the tokens while ensuring the bucket doesn't exceed its maximum capacity
-        lastRefillTimestamp = currentTime; // update the last refill timestamp
+        long currentTime = System.currentTimeMillis(); // Get the current time
+        long intervalMillis = refillIntervalTimeUnit.toMillis(1L);
+        long tokensToAdd = (currentTime - lastRefillTimestamp) * maxTokens / intervalMillis; // Calculate how many tokens should be added based on the elapsed time and the refill interval
+        if (tokensToAdd <= 0L) {
+            return; // Keep the timestamp, otherwise frequent calls would never accumulate a whole token
+        }
+        if (tokens + tokensToAdd >= maxTokens) {
+            tokens = maxTokens;
+            lastRefillTimestamp = currentTime;
+        } else {
+            tokens += tokensToAdd;
+            lastRefillTimestamp += tokensToAdd * intervalMillis / maxTokens; // Only consume the time used by the added tokens
+        }
     }
 }
