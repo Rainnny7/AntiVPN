@@ -25,3 +25,9 @@ fabric.properties
 git.properties
 work
 logs
+target/
+.env
+
+# Runtime data: source snapshots and MaxMind databases
+/data/
+/maxmind/
