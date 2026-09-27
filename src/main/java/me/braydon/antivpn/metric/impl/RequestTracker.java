@@ -8,17 +8,18 @@ import me.braydon.antivpn.metric.MetricTracker;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
 /**
  * This tracker tracks the amount of requests that have
- * been received in the last {@link super#getInterval()} ()}
+ * been received in the last {@link MetricTracker#getInterval()}
  *
  * @author Braydon
  */
 public final class RequestTracker extends MetricTracker {
-    private int currentRequests; // The currently cached requests
-    private int lookups; // The amount of lookup requests
+    private final AtomicInteger currentRequests = new AtomicInteger(); // The currently cached requests
+    private final AtomicInteger lookups = new AtomicInteger(); // The amount of lookup requests
     
     public RequestTracker() {
         super(TimeUnit.SECONDS.toMillis(5L));
@@ -41,22 +42,21 @@ public final class RequestTracker extends MetricTracker {
                                                                           .addTag("type", tag)
                                                                           .addField("value", value)
                                                                           .time(Instant.now().toEpochMilli(), WritePrecision.MS);
-        chain.add(getPoint.apply("NORMAL", currentRequests)); // All requests
-        chain.add(getPoint.apply("LOOKUPS", lookups)); // Lookup requests
-        currentRequests = lookups = 0; // Clear requests
+        chain.add(getPoint.apply("NORMAL", currentRequests.getAndSet(0))); // All requests
+        chain.add(getPoint.apply("LOOKUPS", lookups.getAndSet(0))); // Lookup requests
     }
     
     /**
      * Submit a request to this tracker.
      */
     public void submitRequest() {
-        currentRequests++;
+        currentRequests.incrementAndGet();
     }
     
     /**
      * Submit a lookup request to this tracker.
      */
     public void submitLookup() {
-        lookups++;
+        lookups.incrementAndGet();
     }
 }

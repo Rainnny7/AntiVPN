@@ -4,20 +4,27 @@ import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
 import lombok.NonNull;
 import me.braydon.antivpn.metric.MetricTracker;
-import me.braydon.antivpn.provider.ServiceProvider;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
+ * Tracks the amount of blocks loaded for each detection source.
+ *
  * @author Braydon
  */
 public final class ProviderTracker extends MetricTracker {
-    public ProviderTracker() {
+    /**
+     * Supplies the block count of each source, keyed by source name.
+     */
+    @NonNull private final Supplier<Map<String, Integer>> counts;
+    
+    public ProviderTracker(@NonNull Supplier<Map<String, Integer>> counts) {
         super(TimeUnit.SECONDS.toMillis(10L));
+        this.counts = counts;
     }
     
     /**
@@ -33,13 +40,10 @@ public final class ProviderTracker extends MetricTracker {
      */
     @Override
     public void track(@NonNull List<Point> chain) {
-        Set<ServiceProvider> providers = ServiceProvider.getRegistry();
-        
-        // IP Addresses
-        for (ServiceProvider provider : providers) {
+        for (Map.Entry<String, Integer> entry : counts.get().entrySet()) {
             chain.add(Point.measurement("providerIps")
-                          .addTag("provider", provider.getName())
-                          .addField("value", ThreadLocalRandom.current().nextInt(100, 1000)) // TODO: impl into cache, too intense to do now
+                          .addTag("provider", entry.getKey())
+                          .addField("value", entry.getValue())
                           .time(Instant.now().toEpochMilli(), WritePrecision.MS));
         }
     }

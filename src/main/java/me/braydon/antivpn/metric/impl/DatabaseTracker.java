@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
 /**
@@ -17,7 +18,7 @@ import java.util.function.BiFunction;
  */
 public final class DatabaseTracker extends MetricTracker {
     private final ConcurrentHashMap<DatabaseType, CopyOnWriteArrayList<Long>> responseTimes = new ConcurrentHashMap<>(); // Response times
-    private int cacheHits, cacheMisses; // Cache stats
+    private final AtomicInteger cacheHits = new AtomicInteger(), cacheMisses = new AtomicInteger(); // Cache stats
     
     public DatabaseTracker() {
         super(TimeUnit.SECONDS.toMillis(5L));
@@ -37,7 +38,7 @@ public final class DatabaseTracker extends MetricTracker {
     public void track(@NonNull List<Point> chain) {
         // Response times
         for (DatabaseType databaseType : DatabaseType.values()) {
-            List<Long> responseTimes = this.responseTimes.get(databaseType);
+            List<Long> responseTimes = this.responseTimes.remove(databaseType);
             int responseCount = 0;
             long totalResponseTime = 0L;
             if (responseTimes != null) { // We have response times for this database type
@@ -51,16 +52,14 @@ public final class DatabaseTracker extends MetricTracker {
                           .addTag("type", databaseType.name())
                           .addField("value", averageResponseTime));
         }
-        responseTimes.clear(); // Clear the response times
         
         // Cache stats
         BiFunction<String, Integer, Point> getCachePoint = (tag, value) -> Point.measurement("cache")
                                                                                .addTag("type", tag)
                                                                                .addField("value", value)
                                                                                .time(Instant.now().toEpochMilli(), WritePrecision.MS);
-        chain.add(getCachePoint.apply("HIT", cacheHits));
-        chain.add(getCachePoint.apply("MISS", cacheMisses));
-        cacheHits = cacheMisses = 0; // Clear cache stats
+        chain.add(getCachePoint.apply("HIT", cacheHits.getAndSet(0)));
+        chain.add(getCachePoint.apply("MISS", cacheMisses.getAndSet(0)));
     }
     
     /**
@@ -78,21 +77,21 @@ public final class DatabaseTracker extends MetricTracker {
      * Submit a cache hit to this tracker.
      */
     public void submitCacheHit() {
-        cacheHits++;
+        cacheHits.incrementAndGet();
     }
     
     /**
      * Submit a cache miss to this tracker.
      */
     public void submitCacheMiss() {
-        cacheMisses++;
+        cacheMisses.incrementAndGet();
     }
     
     /**
      * The databases to keep track of.
      */
     public enum DatabaseType {
-        MONGODB,
+        MARIADB,
         REDIS,
         INFLUXDB
     }

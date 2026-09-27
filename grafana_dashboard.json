@@ -198,7 +198,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "MONGODB"
+              "options": "MARIADB"
             },
             "properties": [
               {
