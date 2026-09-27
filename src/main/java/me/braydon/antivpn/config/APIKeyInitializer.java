@@ -9,6 +9,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -16,7 +17,7 @@ import java.util.Set;
  * Makes sure there's a fully privileged API key on start.
  * <p>
  * When {@code auth.admin-key} is set, that key is created (or updated)
- * with every permission. Otherwise, a random key is generated and
+ * with every permission and no rate limits. Otherwise, a random key is generated and
  * logged once, if no API keys exist yet.
  * </p>
  *
@@ -71,8 +72,9 @@ public class APIKeyInitializer implements ApplicationRunner {
             apiKey.setPermissions(new HashSet<>(Set.of(APIKey.Permission.values())));
             apiKey.setBanned(null);
         }
+        apiKey.setRateLimits(new HashMap<>()); // No limits, so it's never rate limited or banned
         apiKeyRepository.save(apiKey);
-        log.info("Admin API key {} is ready with every permission", APIKey.mask(adminKey));
+        log.info("Admin API key {} is ready with every permission and no rate limits", APIKey.mask(adminKey));
     }
     
     private void createDefaultKey() {

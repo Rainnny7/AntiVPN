@@ -13,7 +13,7 @@ server:
 
 auth:
   header: "X-API-Key" # The header to use when identifying API keys
-  # An API key with every permission, created on start (at least 16 characters).
+  # An API key with every permission and no rate limits, created on start (at least 16 characters).
   # Leave blank to generate a random key on first start instead, which is logged once.
   admin-key: "${ADMIN_API_KEY:}"
 

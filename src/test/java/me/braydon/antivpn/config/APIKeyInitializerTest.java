@@ -55,6 +55,19 @@ class APIKeyInitializerTest {
     }
     
     @Test
+    void adminKeyIsNeverRateLimited() {
+        run(ADMIN_KEY);
+        APIKey admin = keys.get(ADMIN_KEY);
+        
+        assertThat(admin.getRateLimits()).isEmpty();
+        for (int i = 0; i < 1000; i++) {
+            admin.use();
+            assertThat(admin.checkRateLimit()).isFalse();
+        }
+        assertThat(admin.isBanned()).isFalse();
+    }
+    
+    @Test
     void upgradesAnExistingKey() {
         APIKey existing = APIKey.create(ADMIN_KEY, "Old", APIKey.Permission.VIEW_STATS);
         existing.setBanned(new Date());
@@ -64,6 +77,7 @@ class APIKeyInitializerTest {
         
         APIKey admin = keys.get(ADMIN_KEY);
         assertThat(admin.getPermissions()).containsExactlyInAnyOrder(APIKey.Permission.values());
+        assertThat(admin.getRateLimits()).isEmpty();
         assertThat(admin.isBanned()).isFalse();
         assertThat(admin.getDescription()).isEqualTo(APIKeyInitializer.ADMIN_DESCRIPTION);
     }

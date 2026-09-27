@@ -35,4 +35,11 @@ class ApplicationTest extends AbstractApplicationTest {
         mvc.perform(get("/stats").header("X-API-Key", ADMIN_KEY)).andExpect(status().isOk());
         mvc.perform(get("/allowlist/list").header("X-API-Key", ADMIN_KEY)).andExpect(status().isOk());
     }
+    
+    @Test
+    void configuredAdminKeyIsNotRateLimited() throws Exception {
+        for (int i = 0; i < 50; i++) { // Well over the default 10 per second
+            mvc.perform(get("/check").param("ip", "1.128.0.1").header("X-API-Key", ADMIN_KEY)).andExpect(status().isOk());
+        }
+    }
 }

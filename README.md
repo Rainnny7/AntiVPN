@@ -111,7 +111,7 @@ Every route except `/amiusingavpn` and `/actuator/health` needs an API key in th
 `auth.header`). Anonymous requests are limited to 100 per minute per IP.
 
 Set `auth.admin-key` (`ADMIN_API_KEY`) to an API key of at least 16 characters, and it's created on start with every
-permission. Changing it revokes the previous admin key. Without it, a random fully privileged key is generated on first
+permission and no rate limits. Changing it revokes the previous admin key. Without it, a random fully privileged key is generated on first
 start and logged **once**.
 
 Errors are always JSON:
@@ -202,7 +202,7 @@ Everything lives in [`application.yml`](src/main/resources/application.yml). Ove
 | `maxmind.directory`                         | `maxmind`        | Where the `.mmdb` files are stored                            |
 | `influxdb.url`, `token`, `org`, `bucket`    | empty            | Optional metrics (see [`grafana_dashboard.json`](grafana_dashboard.json)) |
 | `auth.header`                               | `X-API-Key`      | The API key header                                            |
-| `auth.admin-key` / `ADMIN_API_KEY`          | empty            | An API key with every permission, created on start            |
+| `auth.admin-key` / `ADMIN_API_KEY`          | empty            | An API key with every permission and no rate limits           |
 | `detection.scheduling-enabled`              | `true`           | Refresh sources on a schedule                                 |
 | `detection.snapshot-directory`              | `data/sources`   | Where the last good copy of each source is kept               |
 | `detection.disabled-sources`                | `[]`             | Source ids to skip, e.g. `[ "x4b-datacenter", "aws" ]`        |
