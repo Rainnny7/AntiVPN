@@ -21,8 +21,8 @@ services:
       INFLUXDB_ORG: ${INFLUXDB_ORG:-}
       INFLUXDB_BUCKET: ${INFLUXDB_BUCKET:-}
     volumes:
-      - antivpn-data:/app/data
-      - antivpn-maxmind:/app/maxmind
+      - ./data/app:/app/data
+      - ./data/maxmind:/app/maxmind
       # - ./application.yml:/app/config/application.yml:ro # Optional overrides
     depends_on:
       mariadb:
@@ -40,7 +40,7 @@ services:
       MARIADB_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in .env}
       MARIADB_RANDOM_ROOT_PASSWORD: "yes"
     volumes:
-      - mariadb-data:/var/lib/mysql
+      - ./data/mariadb:/var/lib/mysql
     healthcheck:
       test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ]
       interval: 10s
@@ -58,8 +58,3 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-
-volumes:
-  antivpn-data:
-  antivpn-maxmind:
-  mariadb-data:

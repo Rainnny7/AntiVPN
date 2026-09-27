@@ -28,6 +28,6 @@ logs
 target/
 .env
 
-# Runtime data: source snapshots and MaxMind databases
+# Runtime data: source snapshots, MaxMind databases, and MariaDB files
 /data/
 /maxmind/
