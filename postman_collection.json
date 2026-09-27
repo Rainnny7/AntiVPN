@@ -2,48 +2,128 @@
   "info": {
     "_postman_id": "894ddbd9-95ed-4b7c-b5a8-563b4a7bb33b",
     "name": "Rainnny Anti-VPN",
+    "description": "Every route needs the X-API-Key header, except /amiusingavpn and /actuator/health.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "Cache",
-      "item": [
+      "name": "Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{API_ENDPOINT}}/check?ip=89.35.28.131&data=ASN,GEOGRAPHICAL",
+          "host": [
+            "{{API_ENDPOINT}}"
+          ],
+          "path": [
+            "check"
+          ],
+          "query": [
+            {
+              "key": "ip",
+              "value": "89.35.28.131",
+              "description": "The IP address (v4 or v6) or domain to check"
+            },
+            {
+              "key": "data",
+              "value": "ASN,GEOGRAPHICAL",
+              "description": "Optional extra data: ASN, GEOGRAPHICAL"
+            },
+            {
+              "key": "ignoreCache",
+              "value": "true",
+              "description": "Skip the cache, requires IGNORE_ADDRESS_CACHE",
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "response": [
         {
-          "name": "Purge",
-          "protocolProfileBehavior": {
-            "disabledSystemHeaders": {}
-          },
-          "request": {
-            "method": "DELETE",
+          "name": "NordVPN server",
+          "originalRequest": {
+            "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{API_ENDPOINT}}/cache/purge",
+              "raw": "{{API_ENDPOINT}}/check?ip=89.35.28.131",
               "host": [
                 "{{API_ENDPOINT}}"
               ],
               "path": [
-                "cache",
-                "purge"
+                "check"
+              ],
+              "query": [
+                {
+                  "key": "ip",
+                  "value": "89.35.28.131"
+                }
               ]
             }
           },
-          "response": []
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"ip\": \"89.35.28.131\",\n  \"ipType\": 4,\n  \"risk\": 1.0,\n  \"vpn\": true,\n  \"vpnProvider\": true,\n  \"provider\": \"NordVPN\",\n  \"tor\": false,\n  \"relay\": false,\n  \"hosting\": true,\n  \"abuse\": false,\n  \"allowlisted\": false,\n  \"blacklists\": [],\n  \"detections\": [\n    { \"source\": \"nordvpn\", \"name\": \"NordVPN\", \"category\": \"VPN\", \"confidence\": \"CONFIRMED\", \"range\": \"89.35.28.131\" },\n    { \"source\": \"hosting-asn\", \"name\": \"M247\", \"category\": \"HOSTING\", \"confidence\": \"LIKELY\", \"range\": \"AS9009\" }\n  ]\n}"
         }
       ]
+    },
+    {
+      "name": "AmIUsingAVPN",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "description": "Checks the caller's own IP. Disabled unless amiusingavpn: true.",
+        "url": {
+          "raw": "{{API_ENDPOINT}}/amiusingavpn",
+          "host": [
+            "{{API_ENDPOINT}}"
+          ],
+          "path": [
+            "amiusingavpn"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Stats",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "description": "Requires VIEW_STATS. Shows each source's size, freshness and last error.",
+        "url": {
+          "raw": "{{API_ENDPOINT}}/stats",
+          "host": [
+            "{{API_ENDPOINT}}"
+          ],
+          "path": [
+            "stats"
+          ]
+        }
+      },
+      "response": []
     },
     {
       "name": "Blacklist",
       "item": [
         {
           "name": "Modify",
-          "protocolProfileBehavior": {
-            "disabledSystemHeaders": {}
-          },
           "request": {
             "method": "POST",
             "header": [],
+            "description": "Requires MANAGE_BLACKLIST. Adds the entry, or removes it if it's already listed.",
             "url": {
-              "raw": "{{API_ENDPOINT}}/blacklist/modify?type=ASN&entry=46562",
+              "raw": "{{API_ENDPOINT}}/blacklist/modify?type=ASN&entry=AS46562",
               "host": [
                 "{{API_ENDPOINT}}"
               ],
@@ -55,12 +135,12 @@
                 {
                   "key": "type",
                   "value": "ASN",
-                  "description": "The type of blacklist to modify."
+                  "description": "ASN or COUNTRY"
                 },
                 {
                   "key": "entry",
-                  "value": "46562",
-                  "description": "The entry to add/remove to/from the blacklist."
+                  "value": "AS46562",
+                  "description": "An ASN (46562 or AS46562), or a country ISO code or name"
                 }
               ]
             }
@@ -69,12 +149,10 @@
         },
         {
           "name": "List",
-          "protocolProfileBehavior": {
-            "disabledSystemHeaders": {}
-          },
           "request": {
             "method": "GET",
             "header": [],
+            "description": "Requires MANAGE_BLACKLIST.",
             "url": {
               "raw": "{{API_ENDPOINT}}/blacklist/list",
               "host": [
@@ -91,10 +169,86 @@
       ]
     },
     {
-      "name": "AmIUsingAVPN",
-      "protocolProfileBehavior": {
-        "disabledSystemHeaders": {}
-      },
+      "name": "Allowlist",
+      "item": [
+        {
+          "name": "Modify",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "description": "Requires MANAGE_BLACKLIST. Allowlisted addresses are always reported as clean.",
+            "url": {
+              "raw": "{{API_ENDPOINT}}/allowlist/modify?type=IP_RANGE&entry=203.0.113.0/24",
+              "host": [
+                "{{API_ENDPOINT}}"
+              ],
+              "path": [
+                "allowlist",
+                "modify"
+              ],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "IP_RANGE",
+                  "description": "IP_RANGE or ASN"
+                },
+                {
+                  "key": "entry",
+                  "value": "203.0.113.0/24",
+                  "description": "An IP address or CIDR block, or an ASN (AS1221)"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Requires MANAGE_BLACKLIST.",
+            "url": {
+              "raw": "{{API_ENDPOINT}}/allowlist/list",
+              "host": [
+                "{{API_ENDPOINT}}"
+              ],
+              "path": [
+                "allowlist",
+                "list"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Cache",
+      "item": [
+        {
+          "name": "Purge",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Requires PURGE_CACHE.",
+            "url": {
+              "raw": "{{API_ENDPOINT}}/cache/purge",
+              "host": [
+                "{{API_ENDPOINT}}"
+              ],
+              "path": [
+                "cache",
+                "purge"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Health",
       "request": {
         "auth": {
           "type": "noauth"
@@ -102,75 +256,13 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{API_ENDPOINT}}/amiusingavpn",
+          "raw": "{{API_ENDPOINT}}/actuator/health",
           "host": [
             "{{API_ENDPOINT}}"
           ],
           "path": [
-            "amiusingavpn"
-          ],
-          "query": [
-            {
-              "key": "ignoreCache",
-              "value": "true",
-              "description": "Should we ignore any caches?",
-              "disabled": true
-            }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Check",
-      "protocolProfileBehavior": {
-        "disabledSystemHeaders": {}
-      },
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{API_ENDPOINT}}/check?ip=172.98.92.60&data=ASN, GEOGRAPHICAL",
-          "host": [
-            "{{API_ENDPOINT}}"
-          ],
-          "path": [
-            "check"
-          ],
-          "query": [
-            {
-              "key": "ip",
-              "value": "172.98.92.60",
-              "description": "The website or IP address to check"
-            },
-            {
-              "key": "data",
-              "value": "ASN, GEOGRAPHICAL",
-              "description": "The optional types of data to retrieve"
-            },
-            {
-              "key": "ignoreCache",
-              "value": "true",
-              "description": "Should we ignore any caches?",
-              "disabled": true
-            }
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Stats",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{API_ENDPOINT}}/stats",
-          "host": [
-            "{{API_ENDPOINT}}"
-          ],
-          "path": [
-            "stats"
+            "actuator",
+            "health"
           ]
         }
       },
@@ -192,26 +284,6 @@
       }
     ]
   },
-  "event": [
-    {
-      "listen": "prerequest",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
-          ""
-        ]
-      }
-    },
-    {
-      "listen": "test",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
-          ""
-        ]
-      }
-    }
-  ],
   "variable": [
     {
       "key": "API_KEY",
