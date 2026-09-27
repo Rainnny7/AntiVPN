@@ -1,14 +1,31 @@
-# Use Java 18 as the base
-FROM openjdk:18-jdk-alpine
+# syntax=docker/dockerfile:1
 
-# Creating and setting the working dir
-WORKDIR /usr/src/app
+# The jar is platform independent, so always build on the native platform
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS build
+WORKDIR /build
+COPY .mvn/ .mvn/
+COPY mvnw pom.xml ./
+COPY src/ src/
+RUN --mount=type=cache,target=/root/.m2 chmod +x mvnw && ./mvnw -B -q package -DskipTests
 
-# Moving the jar file to the container
-COPY AntiVPN.jar application.jar
+FROM eclipse-temurin:21-jre
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system antivpn \
+    && useradd --system --gid antivpn --home-dir /app antivpn
 
-# Expose the port
+WORKDIR /app
+COPY --from=build /build/target/AntiVPN.jar application.jar
+RUN mkdir -p data maxmind logs config && chown -R antivpn:antivpn /app
+USER antivpn
+
+# data: source snapshots, maxmind: GeoLite2 databases
+VOLUME ["/app/data", "/app/maxmind"]
 EXPOSE 7500
 
-# Run the app
-ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "application.jar"]
+# Liveness only, so a Redis or InfluxDB outage doesn't restart the container
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
+    CMD curl -fsS http://localhost:7500/actuator/health/liveness || exit 1
+
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "application.jar"]
