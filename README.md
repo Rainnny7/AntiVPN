@@ -218,12 +218,12 @@ Everything lives in [`application.yml`](src/main/resources/application.yml). Ove
 
 ## Development
 
-Requires Java 21. Docker is optional.
+Requires Java 21 and Maven. Docker is optional.
 
 ```bash
-./mvnw verify            # Unit, web and application tests, plus MariaDB/Redis integration tests when Docker is available
-./mvnw test -Plive       # Fetch every source from upstream and check the data is usable
-./mvnw spring-boot:run   # Run locally (needs MariaDB, Redis is optional)
+mvn verify            # Unit, web and application tests, plus MariaDB/Redis integration tests when Docker is available
+mvn test -Plive       # Fetch every source from upstream and check the data is usable
+mvn spring-boot:run   # Run locally (needs MariaDB, Redis is optional)
 ```
 
 The tests run against captured upstream responses in [`src/test/resources/fixtures`](src/test/resources/fixtures) and

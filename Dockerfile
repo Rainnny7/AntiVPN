@@ -1,12 +1,11 @@
 # syntax=docker/dockerfile:1
 
 # The jar is platform independent, so always build on the native platform
-FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS build
+FROM --platform=$BUILDPLATFORM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /build
-COPY .mvn/ .mvn/
-COPY mvnw pom.xml ./
+COPY pom.xml ./
 COPY src/ src/
-RUN --mount=type=cache,target=/root/.m2 chmod +x mvnw && ./mvnw -B -q package -DskipTests
+RUN --mount=type=cache,target=/root/.m2 mvn -B -q package -DskipTests
 
 FROM eclipse-temurin:21-jre
 RUN apt-get update \

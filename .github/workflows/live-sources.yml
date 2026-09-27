@@ -27,7 +27,7 @@ jobs:
           cache: maven
 
       - name: Run live tests
-        run: ./mvnw -B test -Plive
+        run: mvn -B test -Plive
 
       - name: Upload test reports
         if: failure()

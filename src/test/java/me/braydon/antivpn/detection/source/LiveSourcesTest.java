@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Fetches every source from upstream to catch format changes.
  * <p>
- * Excluded from the normal build, run with {@code ./mvnw test -Plive}.
+ * Excluded from the normal build, run with {@code mvn test -Plive}.
  * </p>
  */
 @Tag("live")

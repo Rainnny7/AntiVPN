@@ -31,7 +31,7 @@ jobs:
 
       # Docker is available on GitHub runners, so the Testcontainers tests run here
       - name: Build and test
-        run: ./mvnw -B verify
+        run: mvn -B verify
 
       - name: Upload test reports
         if: failure()
