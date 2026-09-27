@@ -46,6 +46,12 @@ public class CachedAddressData implements Serializable {
     private final long timestamp;
     
     /**
+     * The generation of the detection data and
+     * policy lists this was computed with.
+     */
+    private final String generation;
+    
+    /**
      * Check if this cache has lookup data.
      *
      * @return true if it has lookup data, otherwise false
@@ -61,15 +67,18 @@ public class CachedAddressData implements Serializable {
      *
      * @param addressData the address data
      * @param lookupData  the lookup data used to fetch the address data
+     * @param generation  the generation of the data used
      * @return the cached address data
      */
     @NonNull
-    public static CachedAddressData asCache(@NonNull AddressData addressData, Set<AddressService.LookupData> lookupData) {
+    public static CachedAddressData asCache(@NonNull AddressData addressData, Set<AddressService.LookupData> lookupData,
+                                            @NonNull String generation) {
         return new CachedAddressData(
             addressData.getIp(),
             lookupData,
             AntiVPN.GSON.toJson(addressData),
-            System.currentTimeMillis()
+            System.currentTimeMillis(),
+            generation
         );
     }
 }

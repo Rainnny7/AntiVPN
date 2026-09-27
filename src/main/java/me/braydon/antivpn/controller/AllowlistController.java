@@ -1,10 +1,9 @@
 package me.braydon.antivpn.controller;
 
 import lombok.NonNull;
-import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.common.AuthUtils;
 import me.braydon.antivpn.model.APIKey;
-import me.braydon.antivpn.model.Blacklist;
+import me.braydon.antivpn.model.Allowlist;
 import me.braydon.antivpn.service.PolicyListService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -14,52 +13,51 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ * Manages allowlists, addresses on them are always reported as clean.
+ *
  * @author Braydon
  */
 @RestController
-@RequestMapping(value = "/blacklist", produces = MediaType.APPLICATION_JSON_VALUE)
-@Slf4j(topic = "Blacklist Controller")
-public final class BlacklistController {
+@RequestMapping(value = "/allowlist", produces = MediaType.APPLICATION_JSON_VALUE)
+public final class AllowlistController {
     @NonNull private final PolicyListService policyListService;
     
-    public BlacklistController(@NonNull PolicyListService policyListService) {
+    public AllowlistController(@NonNull PolicyListService policyListService) {
         this.policyListService = policyListService;
     }
     
     /**
-     * Modify the blacklist.
+     * Modify the allowlist.
      * <p>
      * When this route is called, the given entry
-     * will be added to the blacklist if it doesn't
+     * will be added to the allowlist if it doesn't
      * exist, and removed if it does.
      * </p>
      *
-     * @param type  the type of blacklist to modify
-     * @param entry the entry to add/remove to/from the blacklist
+     * @param type  the type of allowlist to modify
+     * @param entry the IP address, CIDR block, or ASN to add/remove
      * @return the json response
-     * @see Blacklist for blacklist
-     * @see Blacklist.BlacklistType for blacklist type
+     * @see Allowlist.AllowlistType for allowlist type
      */
     @PostMapping("/modify")
-    public ResponseEntity<Map<String, String>> blacklist(@RequestParam @NonNull Blacklist.BlacklistType type,
+    public ResponseEntity<Map<String, String>> allowlist(@RequestParam @NonNull Allowlist.AllowlistType type,
                                                          @RequestParam @NonNull String entry) {
         AuthUtils.validatePermissions(APIKey.Permission.MANAGE_BLACKLIST); // Validate permissions
-        boolean added = policyListService.toggleBlacklist(type, entry);
+        boolean added = policyListService.toggleAllowlist(type, entry);
         return ResponseEntity.ok(Map.of(
-            "blacklist", type.name(),
+            "allowlist", type.name(),
             "message", String.format("Entry '%s' was %s", entry.trim(), added ? "added" : "removed")
         ));
     }
     
     /**
-     * List all blacklists.
+     * List all allowlists.
      *
      * @return the json response
-     * @see Blacklist for blacklist
      */
     @GetMapping("/list")
-    public ResponseEntity<List<Blacklist>> list() {
+    public ResponseEntity<List<Allowlist>> list() {
         AuthUtils.validatePermissions(APIKey.Permission.MANAGE_BLACKLIST); // Validate permissions
-        return ResponseEntity.ok(policyListService.getAllBlacklists());
+        return ResponseEntity.ok(policyListService.getAllAllowlists());
     }
 }

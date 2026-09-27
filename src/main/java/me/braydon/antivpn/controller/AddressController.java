@@ -1,32 +1,29 @@
 package me.braydon.antivpn.controller;
 
-import com.google.gson.JsonObject;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import me.braydon.antivpn.AntiVPN;
 import me.braydon.antivpn.common.AuthUtils;
-import me.braydon.antivpn.common.IPUtils;
+import me.braydon.antivpn.common.ClientIpResolver;
 import me.braydon.antivpn.common.MemoryFormatter;
-import me.braydon.antivpn.metric.MetricService;
-import me.braydon.antivpn.metric.impl.RequestTracker;
+import me.braydon.antivpn.detection.DetectionService;
+import me.braydon.antivpn.detection.DetectionSource;
+import me.braydon.antivpn.detection.SourceState;
 import me.braydon.antivpn.model.APIKey;
 import me.braydon.antivpn.model.AddressData;
+import me.braydon.antivpn.model.Allowlist;
 import me.braydon.antivpn.model.Blacklist;
-import me.braydon.antivpn.provider.ServiceProvider;
-import me.braydon.antivpn.repository.BlacklistRepository;
 import me.braydon.antivpn.service.AddressService;
-import org.springframework.beans.factory.annotation.Autowired;
+import me.braydon.antivpn.service.PolicyListService;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import javax.servlet.http.HttpServletRequest;
 import java.lang.management.ManagementFactory;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.time.Instant;
+import java.util.*;
 
 /**
  * @author Braydon
@@ -35,48 +32,23 @@ import java.util.Set;
 @RequestMapping(value = "/", produces = MediaType.APPLICATION_JSON_VALUE)
 @Slf4j(topic = "Address Controller")
 public class AddressController {
-    /**
-     * The jedis connection factory.
-     *
-     * @see JedisConnectionFactory for jedis connection factory
-     */
-    @NonNull private final JedisConnectionFactory jedisFactory;
-    
-    /**
-     * The address service.
-     *
-     * @see AddressService for address service
-     */
     @NonNull private final AddressService addressService;
-    
-    /**
-     * The metrics service instance to use.
-     *
-     * @see MetricService for metrics service
-     */
-    @NonNull private final MetricService metrics;
-    
-    /**
-     * The blacklist repository.
-     *
-     * @see BlacklistRepository for blacklist repository
-     */
-    @NonNull private final BlacklistRepository blacklistRepository;
+    @NonNull private final DetectionService detectionService;
+    @NonNull private final PolicyListService policyListService;
+    @NonNull private final ClientIpResolver clientIpResolver;
     
     /**
      * Should we enable the /amiusingavpn route?
      */
-    @Value("${amiusingavpn}")
+    @Value("${amiusingavpn:false}")
     private boolean enableAmIUsingAVPN;
     
-    @Autowired
-    public AddressController(@NonNull JedisConnectionFactory jedisFactory,
-                             @NonNull AddressService addressService, @NonNull MetricService metrics,
-                             @NonNull BlacklistRepository blacklistRepository) {
-        this.jedisFactory = jedisFactory;
+    public AddressController(@NonNull AddressService addressService, @NonNull DetectionService detectionService,
+                             @NonNull PolicyListService policyListService, @NonNull ClientIpResolver clientIpResolver) {
         this.addressService = addressService;
-        this.metrics = metrics;
-        this.blacklistRepository = blacklistRepository;
+        this.detectionService = detectionService;
+        this.policyListService = policyListService;
+        this.clientIpResolver = clientIpResolver;
     }
     
     /**
@@ -89,18 +61,14 @@ public class AddressController {
      * @see AddressService#lookup for more
      */
     @GetMapping("/check")
-    @ResponseBody
-    public ResponseEntity<?> check(@RequestParam @NonNull String ip,
-                                   @RequestParam(required = false) Set<AddressService.LookupData> data,
-                                   @RequestParam(required = false) boolean ignoreCache) {
-        if (data == null) { // Default the list
-            data = new HashSet<>();
-        }
+    public ResponseEntity<AddressData> check(@RequestParam @NonNull String ip,
+                                             @RequestParam(required = false) Set<AddressService.LookupData> data,
+                                             @RequestParam(required = false) boolean ignoreCache) {
         AuthUtils.checkRateLimit(); // Checking for rate limit
         if (ignoreCache) { // Validate permissions to ignore the cache
             AuthUtils.validatePermissions(APIKey.Permission.IGNORE_ADDRESS_CACHE);
         }
-        return ResponseEntity.ok(addressService.lookup(ip, data, ignoreCache));
+        return ResponseEntity.ok(addressService.lookup(ip, data == null ? Set.of() : data, ignoreCache));
     }
     
     /**
@@ -110,18 +78,22 @@ public class AddressController {
      * @return the json response
      */
     @GetMapping("/amiusingavpn")
-    @ResponseBody
     public ResponseEntity<?> amiusingavpn(@NonNull HttpServletRequest request) {
         if (!enableAmIUsingAVPN) { // Disallow in production
             return ResponseEntity.notFound().build();
         }
-        metrics.getTracker(RequestTracker.class).submitLookup(); // Metrics
-        String ip = IPUtils.getRealIp(request);
-        AddressData addressData = addressService.lookup(ip, Set.of(AddressService.LookupData.values()), false);
-        return ResponseEntity.ok(Map.of(
-            "message", addressData.getRisk() > 0.3D ? "Yes, you're using a VPN" : "No, you're not using a VPN",
-            "ipType", addressData.getIpType()
-        ));
+        AddressData addressData = addressService.lookup(clientIpResolver.resolve(request), Set.of(), false);
+        boolean usingVpn = addressData.isVpn() || addressData.isTor();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("message", usingVpn ? "Yes, you're using a VPN" : "No, you're not using a VPN");
+        body.put("ipType", addressData.getIpType());
+        body.put("vpn", addressData.isVpn());
+        body.put("tor", addressData.isTor());
+        body.put("relay", addressData.isRelay());
+        if (addressData.getProvider() != null) {
+            body.put("provider", addressData.getProvider());
+        }
+        return ResponseEntity.ok(body);
     }
     
     /**
@@ -130,50 +102,65 @@ public class AddressController {
      * @return the json response
      */
     @GetMapping("/stats")
-    @ResponseBody
-    public ResponseEntity<?> stats() {
+    public ResponseEntity<Map<String, Object>> stats() {
         AuthUtils.validatePermissions(APIKey.Permission.VIEW_STATS); // Validate permissions
+        Instant now = Instant.now();
+        
+        // Stat to show blocks per source
+        Map<String, Integer> ips = new LinkedHashMap<>();
+        Map<String, Object> sources = new LinkedHashMap<>();
+        int total = 0;
+        for (SourceState state : detectionService.getStates()) {
+            DetectionSource source = state.getSource();
+            int blocks = state.getIndex().size();
+            ips.put(source.getName(), blocks);
+            total += blocks;
+            
+            Map<String, Object> sourceStats = new LinkedHashMap<>();
+            sourceStats.put("name", source.getName());
+            sourceStats.put("category", source.getCategory());
+            sourceStats.put("confidence", source.getConfidence());
+            sourceStats.put("blocks", blocks);
+            sourceStats.put("updatedAt", state.getUpdatedAt());
+            sourceStats.put("stale", detectionService.isStale(state, now));
+            sourceStats.put("lastError", state.getLastError());
+            sources.put(source.getId(), sourceStats);
+        }
+        ips.put("total", total);
+        
+        // Blacklisted and allowlisted stats
+        Map<String, Integer> blacklisted = new LinkedHashMap<>();
+        for (Blacklist blacklist : policyListService.getAllBlacklists()) {
+            blacklisted.put(blacklist.getType().name(), blacklist.getEntries().size());
+        }
+        Map<String, Integer> allowlisted = new LinkedHashMap<>();
+        for (Allowlist allowlist : policyListService.getAllAllowlists()) {
+            allowlisted.put(allowlist.getType().name(), allowlist.getEntries().size());
+        }
+        
+        // Application stats
         Runtime runtime = Runtime.getRuntime(); // The current runtime environment
         long totalMemory = runtime.totalMemory();
         long usedMemory = totalMemory - runtime.freeMemory();
         long maxMemory = runtime.maxMemory();
-        long freeMemory = maxMemory - usedMemory;
+        Map<String, Object> memory = new LinkedHashMap<>();
+        memory.put("used", MemoryFormatter.format(usedMemory));
+        memory.put("max", MemoryFormatter.format(maxMemory));
+        memory.put("total", MemoryFormatter.format(totalMemory));
+        memory.put("free", MemoryFormatter.format(maxMemory - usedMemory));
         
-        JsonObject jsonObject = new JsonObject(); // The json object to return
+        Map<String, Object> application = new LinkedHashMap<>();
+        application.put("environment", AntiVPN.isDevelopment() ? "dev" : "prod");
+        application.put("uptime", ManagementFactory.getRuntimeMXBean().getUptime());
+        application.put("availableProcessors", runtime.availableProcessors());
+        application.put("memory", memory);
         
-        // Stat to show IPs per provider
-        JsonObject ipsJsonObject = new JsonObject();
-        int total = 0;
-        for (ServiceProvider serviceProvider : ServiceProvider.getRegistry()) {
-            int ipCount = serviceProvider.getIps(true);
-            ipsJsonObject.addProperty(serviceProvider.getName(), ipCount);
-            total += ipCount;
-        }
-        ipsJsonObject.addProperty("total", total); // Adding the total ip count
-        jsonObject.add("ips", ipsJsonObject); // Adding the ips object to the main json object
-        
-        // Blacklisted stats
-        JsonObject blacklistedJsonObject = new JsonObject();
-        for (Blacklist blacklist : blacklistRepository.findAll()) {
-            blacklistedJsonObject.addProperty(blacklist.getType().name(), blacklist.getEntries().size());
-        }
-        jsonObject.add("blacklisted", blacklistedJsonObject); // Adding the blacklist object to the main json object
-        
-        // Application stats
-        JsonObject applicationJsonObject = new JsonObject();
-        applicationJsonObject.addProperty("environment", AntiVPN.isDevelopment() ? "dev" : "prod");
-        applicationJsonObject.addProperty("uptime", ManagementFactory.getRuntimeMXBean().getUptime());
-        applicationJsonObject.addProperty("availableProcessors", runtime.availableProcessors());
-        
-        JsonObject memoryJsonObject = new JsonObject();
-        memoryJsonObject.addProperty("used", MemoryFormatter.format(usedMemory));
-        memoryJsonObject.addProperty("max", MemoryFormatter.format(maxMemory));
-        memoryJsonObject.addProperty("total", MemoryFormatter.format(totalMemory));
-        memoryJsonObject.addProperty("free", MemoryFormatter.format(freeMemory));
-        applicationJsonObject.add("memory", memoryJsonObject);
-        
-        jsonObject.add("application", applicationJsonObject); // Adding the application object to the main json object
-        
-        return ResponseEntity.ok(AntiVPN.GSON.toJson(jsonObject));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("ips", ips);
+        body.put("sources", sources);
+        body.put("blacklisted", blacklisted);
+        body.put("allowlisted", allowlisted);
+        body.put("application", application);
+        return ResponseEntity.ok(body);
     }
 }
