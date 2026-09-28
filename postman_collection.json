@@ -35,6 +35,12 @@
               "value": "true",
               "description": "Skip the cache, requires IGNORE_ADDRESS_CACHE",
               "disabled": true
+            },
+            {
+              "key": "metadata.player",
+              "value": "Steve",
+              "description": "Optional metadata shown in Discord logs",
+              "disabled": true
             }
           ]
         }
@@ -73,6 +79,32 @@
           "body": "{\n  \"ip\": \"89.35.28.131\",\n  \"ipType\": 4,\n  \"risk\": 1.0,\n  \"vpn\": true,\n  \"vpnProvider\": true,\n  \"provider\": \"NordVPN\",\n  \"tor\": false,\n  \"relay\": false,\n  \"hosting\": true,\n  \"abuse\": false,\n  \"allowlisted\": false,\n  \"blacklists\": [],\n  \"detections\": [\n    { \"source\": \"nordvpn\", \"name\": \"NordVPN\", \"category\": \"VPN\", \"confidence\": \"CONFIRMED\", \"range\": \"89.35.28.131\" },\n    { \"source\": \"hosting-asn\", \"name\": \"M247\", \"category\": \"HOSTING\", \"confidence\": \"LIKELY\", \"range\": \"AS9009\" }\n  ]\n}"
         }
       ]
+    },
+    {
+      "name": "Check with metadata",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"ip\": \"89.35.28.131\",\n  \"data\": [\"ASN\", \"GEOGRAPHICAL\"],\n  \"metadata\": {\n    \"player\": \"Steve\",\n    \"uuid\": \"f84c6a79-0a4e-45e0-879b-cd49ebd4c4e2\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{API_ENDPOINT}}/check",
+          "host": [
+            "{{API_ENDPOINT}}"
+          ],
+          "path": [
+            "check"
+          ]
+        },
+        "description": "Same as GET /check. metadata is included in Discord webhook logs when DISCORD_WEBHOOK_URL is set."
+      }
     },
     {
       "name": "AmIUsingAVPN",

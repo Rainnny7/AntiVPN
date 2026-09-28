@@ -6,6 +6,7 @@ import me.braydon.antivpn.detection.Category;
 import me.braydon.antivpn.detection.Confidence;
 import me.braydon.antivpn.detection.Detection;
 import me.braydon.antivpn.detection.DetectionService;
+import me.braydon.antivpn.discord.DiscordWebhookService;
 import me.braydon.antivpn.exception.impl.APIException;
 import me.braydon.antivpn.metric.MetricService;
 import me.braydon.antivpn.metric.impl.DatabaseTracker;
@@ -35,7 +36,9 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -54,6 +57,7 @@ class ControllerSecurityTest {
     @MockitoBean private DetectionService detectionService;
     @MockitoBean private PolicyListService policyListService;
     @MockitoBean private ClientIpResolver clientIpResolver;
+    @MockitoBean private DiscordWebhookService discordWebhookService;
     
     @BeforeEach
     void setUp() {
@@ -120,6 +124,47 @@ class ControllerSecurityTest {
             .andExpect(jsonPath("$.detections[0].category").value("VPN"))
             .andExpect(jsonPath("$.cached").value(1234))
             .andExpect(jsonPath("$.asn").doesNotExist());
+        
+        verify(discordWebhookService).logLookup(eq(data), eq(Map.of()));
+    }
+    
+    @Test
+    void acceptsMetadataOnGet() throws Exception {
+        AddressData data = nordAddress();
+        when(addressService.lookup(eq("89.35.28.131"), any(), anyBoolean())).thenReturn(data);
+        
+        mvc.perform(get("/check")
+                .param("ip", "89.35.28.131")
+                .param("metadata.player", "Steve")
+                .header("X-API-Key", BASIC_KEY))
+            .andExpect(status().isOk());
+        
+        verify(discordWebhookService).logLookup(eq(data), eq(Map.of("player", "Steve")));
+    }
+    
+    @Test
+    void acceptsMetadataOnPost() throws Exception {
+        AddressData data = nordAddress();
+        when(addressService.lookup(eq("89.35.28.131"), any(), anyBoolean())).thenReturn(data);
+        
+        mvc.perform(post("/check")
+                .contentType(APPLICATION_JSON)
+                .content("{\"ip\":\"89.35.28.131\",\"metadata\":{\"player\":\"Steve\",\"uuid\":\"abc-123\"}}")
+                .header("X-API-Key", BASIC_KEY))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.ip").value("89.35.28.131"));
+        
+        verify(discordWebhookService).logLookup(eq(data), eq(Map.of("player", "Steve", "uuid", "abc-123")));
+    }
+    
+    @Test
+    void rejectsPostWithoutAnIp() throws Exception {
+        mvc.perform(post("/check")
+                .contentType(APPLICATION_JSON)
+                .content("{\"metadata\":{\"player\":\"Steve\"}}")
+                .header("X-API-Key", BASIC_KEY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Missing IP address"));
     }
     
     @Test
@@ -139,6 +184,13 @@ class ControllerSecurityTest {
             .andExpect(jsonPath("$.status").value(400))
             .andExpect(jsonPath("$.message").value("Cannot lookup private or reserved IP ranges"))
             .andExpect(jsonPath("$.path").value("/check"));
+    }
+    
+    @Test
+    void rejectsInvalidMetadataJson() throws Exception {
+        mvc.perform(get("/check").param("ip", "89.35.28.131").param("metadata", "nope").header("X-API-Key", BASIC_KEY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Metadata must be a JSON object"));
     }
     
     @Test

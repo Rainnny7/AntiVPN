@@ -20,6 +20,9 @@ services:
       INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-}
       INFLUXDB_ORG: ${INFLUXDB_ORG:-}
       INFLUXDB_BUCKET: ${INFLUXDB_BUCKET:-}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      DISCORD_USERNAME: ${DISCORD_USERNAME:-AntiVPN}
+      DISCORD_MIN_RISK: ${DISCORD_MIN_RISK:-0}
     volumes:
       - ./data/app:/app/data
       - ./data/maxmind:/app/maxmind

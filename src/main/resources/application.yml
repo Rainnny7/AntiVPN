@@ -30,6 +30,12 @@ influxdb:
   org: "${INFLUXDB_ORG:}"
   bucket: "${INFLUXDB_BUCKET:}"
 
+# Discord Configuration - Used to log lookups, leave the webhook url blank to disable
+discord:
+  webhook-url: "${DISCORD_WEBHOOK_URL:}"
+  username: "${DISCORD_USERNAME:AntiVPN}"
+  min-risk: ${DISCORD_MIN_RISK:0} # Lookups below this risk are not sent, 0 logs every lookup
+
 # VPN Detection Configuration
 detection:
   scheduling-enabled: true # Refresh sources on a schedule

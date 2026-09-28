@@ -125,6 +125,8 @@ Errors are always JSON:
 | `GET`    | `/check?ip=<ip or domain>`                   | -                      | Look up an address                                              |
 | `GET`    | `/check?ip=...&data=ASN,GEOGRAPHICAL`        | -                      | Include ASN and/or location data                                |
 | `GET`    | `/check?ip=...&ignoreCache=true`             | `IGNORE_ADDRESS_CACHE` | Skip the cache                                                  |
+| `GET`    | `/check?ip=...&metadata.player=Steve`        | -                      | Attach metadata (shown in Discord logs)                         |
+| `POST`   | `/check`                                     | -                      | Same lookup, with a JSON body and optional `metadata`           |
 | `GET`    | `/amiusingavpn`                              | none (no key)          | Check the caller's own IP, disabled unless `amiusingavpn: true` |
 | `GET`    | `/stats`                                     | `VIEW_STATS`           | Source status, list sizes and memory usage                      |
 | `POST`   | `/blacklist/modify?type=ASN\|COUNTRY&entry=` | `MANAGE_BLACKLIST`     | Toggle a blacklist entry (`AS13335`, `GB`, `United Kingdom`)    |
@@ -154,6 +156,32 @@ Results are cached in Redis for 30 minutes. Cached responses include `"cached": 
 invalidated automatically whenever a source refreshes or a list changes, so a cached answer is never computed from
 older data than a fresh one would be. If Redis is down, lookups still work, just uncached.
 
+A lookup can include **metadata** that is not used for detection. It is posted with the result when Discord logging is
+enabled. Typical use is tagging a Minecraft player (or any other context you care about) onto the lookup:
+
+```http
+GET /check?ip=89.35.28.131&metadata.player=Steve
+X-API-Key: <your key>
+```
+
+```http
+POST /check
+X-API-Key: <your key>
+Content-Type: application/json
+
+{
+  "ip": "89.35.28.131",
+  "data": ["ASN", "GEOGRAPHICAL"],
+  "metadata": {
+    "player": "Steve",
+    "uuid": "f84c6a79-0a4e-45e0-879b-cd49ebd4c4e2"
+  }
+}
+```
+
+`metadata` can also be a JSON object query parameter (`metadata={"player":"Steve"}`). Keys and values are truncated,
+and at most 20 entries are kept.
+
 A [Postman collection](postman_collection.json) with every route is included.
 
 ## Running it
@@ -176,6 +204,12 @@ ASN and location data come from the free [GeoLite2](https://www.maxmind.com/en/g
 `MAXMIND_ACCOUNT_ID` and `MAXMIND_LICENSE` and they're downloaded on start, and re-downloaded when older than 7 days.
 Without credentials, AntiVPN uses whatever `GeoLite2-ASN.mmdb` and `GeoLite2-City.mmdb` are already in
 `maxmind.directory`. Without an ASN database, hosting-ASN detection and ASN blacklists/allowlists don't work.
+
+### Discord
+
+Set `DISCORD_WEBHOOK_URL` to a Discord channel webhook and every `/check` lookup is posted there (IP, risk, flags,
+detections, and any request metadata). Leave it blank to disable. Lookups below `DISCORD_MIN_RISK` are skipped
+(`0` logs everything; `0.75` is VPN/Tor only). Discord being down never affects the API response.
 
 ### Behind a reverse proxy
 
@@ -201,6 +235,9 @@ Everything lives in [`application.yml`](src/main/resources/application.yml). Ove
 | `maxmind.account-id`, `maxmind.license`     | empty            | GeoLite2 credentials                                          |
 | `maxmind.directory`                         | `maxmind`        | Where the `.mmdb` files are stored                            |
 | `influxdb.url`, `token`, `org`, `bucket`    | empty            | Optional metrics (see [`grafana_dashboard.json`](grafana_dashboard.json)) |
+| `discord.webhook-url` / `DISCORD_WEBHOOK_URL` | empty          | Optional Discord webhook for lookup logs                                  |
+| `discord.username` / `DISCORD_USERNAME`     | `AntiVPN`        | Username shown on webhook messages                                        |
+| `discord.min-risk` / `DISCORD_MIN_RISK`     | `0`              | Lookups below this risk are not sent to Discord                           |
 | `auth.header`                               | `X-API-Key`      | The API key header                                            |
 | `auth.admin-key` / `ADMIN_API_KEY`          | empty            | An API key with every permission and no rate limits           |
 | `detection.scheduling-enabled`              | `true`           | Refresh sources on a schedule                                 |

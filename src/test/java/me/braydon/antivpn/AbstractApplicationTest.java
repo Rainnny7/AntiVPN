@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -46,6 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "maxmind.directory=src/test/resources/maxmind",
     "maxmind.license=",
     "influxdb.url=",
+    "discord.webhook-url=",
     "logging.file.path=target/logs"
 })
 @AutoConfigureMockMvc
@@ -214,6 +216,17 @@ public abstract class AbstractApplicationTest {
     @Test
     void requiresAnApiKey() throws Exception {
         mvc.perform(get("/check").param("ip", "1.128.0.1")).andExpect(status().isUnauthorized());
+    }
+    
+    @Test
+    void acceptsAJsonBodyWithMetadata() throws Exception {
+        mvc.perform(post("/check")
+                .header("X-API-Key", apiKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"ip\":\"1.128.0.1\",\"metadata\":{\"player\":\"Steve\"}}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.ip").value("1.128.0.1"))
+            .andExpect(jsonPath("$.vpn").value(false));
     }
     
     @Test
