@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # The jar is platform independent, so always build on the native platform
-FROM --platform=$BUILDPLATFORM maven:3.9-eclipse-temurin-21 AS build
+FROM --platform=$BUILDPLATFORM maven:3-eclipse-temurin-24 AS build
 WORKDIR /build
 COPY pom.xml ./
 COPY src/ src/
